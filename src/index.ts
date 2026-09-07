@@ -34,6 +34,7 @@ import {
   type TransitionName,
 } from "./presentation-options.js";
 import { lintMarkdown, sanitizeForTerminal, type LintIssue } from "./lint.js";
+import { safeFetch, BlockedAddressError, type SafeFetchResult } from "./safe-fetch.js";
 
 const moduleRequire = createRequire(import.meta.url);
 
@@ -501,27 +502,30 @@ async function handleEditorRoute(
       return true;
     }
 
-    let upstream: Response;
+    let upstream: SafeFetchResult;
     try {
       // Fetched server-side, not from the browser, so a page with no
-      // Access-Control-Allow-Origin still loads fine.
-      upstream = await fetch(target, {
-        redirect: "follow",
-        signal: AbortSignal.timeout(15_000),
-        headers: { "User-Agent": "deckrun" },
+      // Access-Control-Allow-Origin still loads fine. safeFetch refuses to
+      // connect to a private address and re-checks every redirect hop, so
+      // this route cannot be used to reach loopback services, the instance
+      // metadata endpoint, or anything else on the local network.
+      upstream = await safeFetch(target.href, {
+        maxBytes: MAX_BODY,
+        timeoutMs: 15_000,
       });
     } catch (err) {
-      res.writeHead(502, { "Content-Type": "application/json" });
+      const blocked = err instanceof BlockedAddressError;
+      res.writeHead(blocked ? 403 : 502, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
-          error: "fetch failed",
+          error: blocked ? "address not allowed" : "fetch failed",
           detail: err instanceof Error ? err.message : "network error",
         })
       );
       return true;
     }
 
-    if (!upstream.ok) {
+    if (upstream.status < 200 || upstream.status >= 300) {
       res.writeHead(502, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({ error: "fetch failed", detail: `upstream responded ${upstream.status}` })
@@ -529,8 +533,7 @@ async function handleEditorRoute(
       return true;
     }
 
-    const rawContent = await upstream.text();
-    if (rawContent.length > MAX_BODY) {
+    if (upstream.truncated) {
       res.writeHead(413, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
@@ -540,14 +543,19 @@ async function handleEditorRoute(
       );
       return true;
     }
+
+    const rawContent = upstream.body;
     if (!rawContent.trim()) {
       res.writeHead(422, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "empty document" }));
       return true;
     }
 
-    const contentType = (upstream.headers.get("content-type") ?? "").toLowerCase();
-    const pathname = target.pathname.toLowerCase();
+    const contentType = String(upstream.headers["content-type"] ?? "").toLowerCase();
+    // The redirect chain may have moved us; name the document by where it
+    // actually came from.
+    const finalUrl = upstream.url;
+    const pathname = finalUrl.pathname.toLowerCase();
 
     let isHtml = false;
     if (pathname.endsWith(".html") || pathname.endsWith(".htm")) {
@@ -569,7 +577,7 @@ async function handleEditorRoute(
       isHtml = true;
     }
 
-    const defaultName = target.pathname.split("/").filter(Boolean).pop() || target.hostname;
+    const defaultName = finalUrl.pathname.split("/").filter(Boolean).pop() || finalUrl.hostname;
     let title: string;
     if (isHtml) {
       title = docTitle(rawContent, defaultName);
