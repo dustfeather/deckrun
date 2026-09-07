@@ -28,7 +28,7 @@ npx deckrun
 ## Installation
 
 Install with a single command. On Linux and macOS the installer bootstraps
-Node.js (>= 16) automatically if it's missing, then installs deckrun from npm:
+Node.js (>= 20) automatically if it's missing, then installs deckrun from npm:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/arpitbbhayani/deckrun/master/install.sh | sh

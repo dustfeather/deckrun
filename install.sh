@@ -4,7 +4,7 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/arpitbbhayani/deckrun/master/install.sh | sh
 #
-# Installs deckrun globally from npm. If Node.js (>= 16) is missing or too
+# Installs deckrun globally from npm. If Node.js (>= 20) is missing or too
 # old, it downloads an LTS Node.js into ~/.local/share/deckrun-node (no root
 # required), puts it on PATH for this shell, and persists that PATH entry in
 # your shell profile so deckrun keeps working in future terminals.
@@ -25,7 +25,7 @@ ok()   { say "${GREEN}✓${RESET} $1"; }
 warn() { say "${YELLOW}!${RESET} $1"; }
 
 # ── Configuration ─────────────────────────────────────────────────────────
-NODE_MIN_MAJOR=16
+NODE_MIN_MAJOR=20
 # LTS to install when Node is missing or too old. Override with the
 # DECKRUN_NODE_VERSION environment variable, e.g. DECKRUN_NODE_VERSION=20.
 NODE_MAJOR="${DECKRUN_NODE_VERSION:-22}"
