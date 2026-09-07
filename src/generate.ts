@@ -67,12 +67,44 @@ function escAttr(str: string): string {
     .replace(/&/g, "&amp;")
     .replace(/"/g, "&quot;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/>/g, "&gt;")
+    // The background image path is interpolated inside `url('…')` in a
+    // `style=` attribute. Without these two, a `'` in the path closes the
+    // url() and the rest of the deck's text becomes CSS declarations.
+    .replace(/\\/g, "&#92;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * Escapes a value that lands in a URL slot (`src`, `href`, `url()`).
+ *
+ * escAttr is a text escaper: it neutralises quote and angle characters but
+ * leaves the scheme alone, so `javascript:` and `data:text/html` survive it
+ * intact. Only http, https, mailto, relative paths and inline data images are
+ * allowed through here; anything else is replaced with `about:blank`.
+ */
+function safeUrl(raw: string): string {
+  const value = raw.trim();
+  // A leading control character or whitespace is how `java\tscript:` slips
+  // past a naive scheme check, so reject the whole value if any are present.
+  if (/[\u0000-\u001f\u007f-\u009f]/.test(value)) return "about:blank";
+
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(value);
+  if (scheme) {
+    const name = scheme[1].toLowerCase();
+    if (name === "data") {
+      return /^data:image\/(png|jpeg|gif|webp|avif|svg\+xml);base64,[a-z0-9+/=]*$/i.test(value)
+        ? value
+        : "about:blank";
+    }
+    if (name !== "http" && name !== "https" && name !== "mailto") return "about:blank";
+  }
+  return value;
 }
 
 export function renderSlide(slide: Slide, index: number): string {
   const bgStyle = slide.bgImage
-    ? ` style="--slide-bg-url: url('${escAttr(slide.bgImage.src)}'); --slide-bg-opacity: ${slide.bgImage.opacity};"`
+    ? ` style="--slide-bg-url: url('${escAttr(safeUrl(slide.bgImage.src))}'); --slide-bg-opacity: ${Number(slide.bgImage.opacity) || 0};"`
     : "";
 
   const bgLayer = slide.bgImage
@@ -85,15 +117,15 @@ export function renderSlide(slide: Slide, index: number): string {
     innerHtml = `
       <div class="slide__split">
         <div class="slide__content">${slide.html}</div>
-        <div class="slide__image-panel" style="opacity:${slide.rightImage.opacity}">
-          <img src="${escAttr(slide.rightImage.src)}" alt="${escAttr(slide.rightImage.alt)}" />
+        <div class="slide__image-panel" style="opacity:${Number(slide.rightImage.opacity) || 0}">
+          <img src="${escAttr(safeUrl(slide.rightImage.src))}" alt="${escAttr(slide.rightImage.alt)}" />
         </div>
       </div>`;
   } else if (slide.leftImage) {
     innerHtml = `
       <div class="slide__split slide__split--left-image">
-        <div class="slide__image-panel" style="opacity:${slide.leftImage.opacity}">
-          <img src="${escAttr(slide.leftImage.src)}" alt="${escAttr(slide.leftImage.alt)}" />
+        <div class="slide__image-panel" style="opacity:${Number(slide.leftImage.opacity) || 0}">
+          <img src="${escAttr(safeUrl(slide.leftImage.src))}" alt="${escAttr(slide.leftImage.alt)}" />
         </div>
         <div class="slide__content">${slide.html}</div>
       </div>`;
@@ -2705,7 +2737,7 @@ ${PRESENTER_CSS}
 </head>
 <body>
 
-<iframe id="doc-frame" src="${escAttr(docUrl)}" title="${escAttr(title)}"></iframe>
+<iframe id="doc-frame" src="${escAttr(safeUrl(docUrl))}" title="${escAttr(title)}"></iframe>
 
 <div id="hud">
   <div id="hud-row">
