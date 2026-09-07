@@ -1,3 +1,117 @@
+/**
+ * Strips C0/C1 control characters from text that came out of a document and
+ * bounds its length.
+ *
+ * `deckrun lint` is meant to run in CI over decks other people wrote, and its
+ * findings are printed straight to a terminal. An ESC, BEL or CSI byte lifted
+ * out of a deck and echoed into a job log lets the deck blank the screen,
+ * conceal the rest of the output, or redraw it — a reviewer then reads a clean
+ * log for a deck that did not lint clean.
+ */
+export function sanitizeForTerminal(value: string, max = 120): string {
+  const stripped = value.replace(/[\u0000-\u001f\u007f-\u009f]/g, "\uFFFD");
+  return stripped.length > max ? stripped.slice(0, max) + "…" : stripped;
+}
+
+/**
+ * Caps on the image scanner.
+ *
+ * The old pattern was `/!\[([^\]]*)\]\(([^\s)]+)(?:\s+"([^"]*)")?\)/g`. The
+ * greedy URL run has no upper bound and cannot contain `)`, so on a line of
+ * `![](` repeated with no closing paren the run swallows the rest of the line
+ * and then backtracks over all of it — from every `![` on the line. One
+ * megabyte of that is roughly L^2/8 steps, which parks a CI runner until the
+ * job times out on a diff that looks unremarkable.
+ *
+ * The scanner below walks the line once with a cursor instead. Runs are
+ * bounded, and the whole file gets a fixed character budget so no crafted
+ * line can turn linting into a denial of service.
+ */
+const MAX_ALT = 500;
+const MAX_URL = 2048;
+const MAX_TITLE = 500;
+const SCAN_BUDGET = 4_000_000;
+
+interface ImageMatch {
+  alt: string;
+  title: string;
+  index: number;
+}
+
+/**
+ * Finds `![alt](url "title")` occurrences on one line.
+ *
+ * `budget` is decremented by the number of characters examined and shared
+ * across the file; when it runs out the scan stops. A URL run longer than
+ * MAX_URL is not a URL, and the cursor jumps past it rather than retrying
+ * from every `![` inside it — that is what keeps the pass linear.
+ */
+function scanImages(line: string, budget: { left: number }): ImageMatch[] {
+  const found: ImageMatch[] = [];
+  const isBreak = (ch: string) => ch === ")" || /\s/.test(ch);
+
+  let i = 0;
+  while (budget.left > 0) {
+    const start = line.indexOf("![", i);
+    if (start < 0) break;
+
+    const alt = line.indexOf("]", start + 2);
+    if (alt < 0) break;
+    budget.left -= alt - start;
+    if (alt - (start + 2) > MAX_ALT || line[alt + 1] !== "(") {
+      i = alt + 1;
+      continue;
+    }
+
+    // URL run: anything up to whitespace or the closing paren.
+    const urlStart = alt + 2;
+    let cursor = urlStart;
+    while (cursor < line.length && cursor - urlStart <= MAX_URL && !isBreak(line[cursor])) {
+      cursor++;
+    }
+    budget.left -= cursor - urlStart;
+    if (cursor - urlStart > MAX_URL) {
+      // Not a URL. Nothing inside a run this long can start a real image
+      // either, so resume past it instead of retrying from every `![` in it.
+      i = cursor;
+      continue;
+    }
+    if (cursor === urlStart) {
+      i = alt + 1;
+      continue;
+    }
+
+    if (line[cursor] === ")") {
+      found.push({ alt: line.slice(start + 2, alt), title: "", index: start });
+      i = cursor + 1;
+      continue;
+    }
+
+    // Optional ` "title"` before the closing paren.
+    let quote = cursor;
+    while (quote < line.length && /[ \t]/.test(line[quote])) quote++;
+    if (line[quote] !== '"') {
+      i = alt + 1;
+      continue;
+    }
+    const window = line.slice(quote + 1, quote + 2 + MAX_TITLE);
+    budget.left -= window.length;
+    const close = window.indexOf('"');
+    if (close < 0 || line[quote + 2 + close] !== ")") {
+      i = alt + 1;
+      continue;
+    }
+    found.push({
+      alt: line.slice(start + 2, alt),
+      title: window.slice(0, close),
+      index: start,
+    });
+    i = quote + 3 + close;
+  }
+
+  return found;
+}
+
 export interface LintIssue {
   rule: string;
   severity: "error" | "warning";
@@ -81,14 +195,29 @@ export function lintMarkdown(markdown: string): LintResult {
   let mathStartLine = 1;
   let mathStartCol = 1;
 
+  // The slide a line belongs to is tracked with a cursor that only moves
+  // forward. `slides.find(...)` re-scanned the whole array for every line, and
+  // a deck that is nothing but `---` separators produces slides whose ranges
+  // are all empty, so nothing ever short-circuits: O(lines x slides), with
+  // both factors controlled by whoever wrote the deck.
+  let slideCursor = 0;
+  const scanBudget = { left: SCAN_BUDGET };
+
   for (let i = 0; i < lines.length; i++) {
     const lineNum = i + 1;
     const line = lines[i];
 
     // Determine current slide number
-    const currentSlide =
-      slides.find((s) => lineNum >= s.startLine && lineNum <= s.endLine)?.slideIndex ??
-      1;
+    while (
+      slideCursor < slides.length - 1 &&
+      lineNum > slides[slideCursor].endLine
+    ) {
+      slideCursor++;
+    }
+    const inRange =
+      lineNum >= slides[slideCursor].startLine &&
+      lineNum <= slides[slideCursor].endLine;
+    const currentSlide = inRange ? slides[slideCursor].slideIndex : 1;
 
     // Check code fences
     const fenceMatch = line.match(/^(\s*)(`{3,}|~{3,})(.*)$/);
@@ -148,12 +277,10 @@ export function lintMarkdown(markdown: string): LintResult {
       }
 
       // Check image directives
-      const imgRegex = /!\[([^\]]*)\]\(([^\s)]+)(?:\s+"([^"]*)")?\)/g;
-      let imgMatch: RegExpExecArray | null;
-      while ((imgMatch = imgRegex.exec(line)) !== null) {
-        const alt = imgMatch[1].trim();
-        const title = imgMatch[3] ?? "";
-        const col = imgMatch.index + 1;
+      for (const image of scanImages(line, scanBudget)) {
+        const alt = image.alt.trim();
+        const title = image.title;
+        const col = image.index + 1;
 
         if (!alt) {
           issues.push({
@@ -174,7 +301,7 @@ export function lintMarkdown(markdown: string): LintResult {
               issues.push({
                 rule: "invalid-image-opacity",
                 severity: "warning",
-                message: `Invalid image opacity '${opMatch[1]}'; expected a number between 0 and 1.`,
+                message: `Invalid image opacity '${sanitizeForTerminal(opMatch[1], 40)}'; expected a number between 0 and 1.`,
                 line: lineNum,
                 column: col,
                 slide: currentSlide,

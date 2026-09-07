@@ -32,7 +32,7 @@ import {
   type TemplateName,
   type TransitionName,
 } from "./presentation-options.js";
-import { lintMarkdown, type LintIssue } from "./lint.js";
+import { lintMarkdown, sanitizeForTerminal, type LintIssue } from "./lint.js";
 
 const moduleRequire = createRequire(import.meta.url);
 
@@ -126,6 +126,9 @@ function safeFilename(name: string): string {
 }
 
 const MAX_BODY = 32 * 1024 * 1024;
+
+/** Ceiling on a file `deckrun lint` will read, so CI cannot be parked on one. */
+const MAX_LINT_INPUT = 8 * 1024 * 1024;
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolveBody, rejectBody) => {
@@ -1038,6 +1041,22 @@ program
         let markdown: string;
         try {
           markdown = file === "-" ? readFileSync(0, "utf-8") : readFileSync(resolve(process.cwd(), file), "utf-8");
+          if (markdown.length > MAX_LINT_INPUT) {
+            reports.push({
+              file,
+              slides: 0,
+              errors: 1,
+              warnings: 0,
+              issues: [{
+                rule: "file-too-large",
+                severity: "error",
+                message: `The file is larger than ${Math.round(MAX_LINT_INPUT / 1024 / 1024)} MB and was not checked.`,
+                line: 1,
+                column: 1,
+              }],
+            });
+            continue;
+          }
         } catch {
           reports.push({
             file,
@@ -1068,12 +1087,16 @@ program
       } else {
         for (const report of reports) {
           if (!report.issues.length) continue;
-          console.log(`\n${report.file}`);
+          // Both the path and the message can carry text lifted out of a deck
+          // that someone else wrote, and this output is read in a CI job log.
+          console.log(`\n${sanitizeForTerminal(report.file, 500)}`);
           for (const item of report.issues) {
             const position = `${item.line}:${item.column}`.padEnd(9);
             const severity = item.severity.padEnd(7);
             const slide = item.slide ? `slide ${item.slide} · ` : "";
-            console.log(`  ${position} ${severity} ${slide}${item.message}  ${item.rule}`);
+            console.log(
+              `  ${position} ${severity} ${slide}${sanitizeForTerminal(item.message, 300)}  ${item.rule}`
+            );
           }
         }
 

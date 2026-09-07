@@ -14,7 +14,7 @@ import {
   TRANSITION_CSS,
 } from "../dist/presentation-options.js";
 import { richContentFeatures, richContentHead } from "../dist/rich-content.js";
-import { lintMarkdown } from "../dist/lint.js";
+import { lintMarkdown, sanitizeForTerminal } from "../dist/lint.js";
 import { generateHtml, generateDocHtml } from "../dist/generate.js";
 import { generatePreviewHtml } from "../dist/preview.js";
 import { generateEditorHtml } from "../dist/editor.js";
@@ -390,4 +390,59 @@ test("The type size option is gone from every surface", async () => {
   // The one scale the deck now renders at still reaches the templates.
   assert.ok(deck.includes("--slide-pad-y: 4.4rem"));
   assert.ok(deck.includes("--slide-pad-x: 6rem"));
+});
+
+test("Lint neutralizes terminal escapes lifted out of a deck", () => {
+  const ESC = String.fromCharCode(27);
+  const BEL = String.fromCharCode(7);
+  const deck = `![x](y.png "opacity=${ESC}[?1049h${ESC}[8m2${BEL}")`;
+
+  const issue = lintMarkdown(deck).issues.find((i) => i.rule === "invalid-image-opacity");
+  assert.ok(issue, "the invalid opacity is still reported");
+  assert.ok(!issue.message.includes(ESC), "no ESC reaches the message");
+  assert.ok(!issue.message.includes(BEL), "no BEL reaches the message");
+  assert.match(issue.message, /Invalid image opacity/);
+
+  assert.equal(sanitizeForTerminal(`a${ESC}b`), "a\uFFFDb");
+  assert.equal(sanitizeForTerminal("x".repeat(200), 10), "xxxxxxxxxx…");
+  assert.equal(sanitizeForTerminal("plain text"), "plain text");
+});
+
+test("Lint cannot be hung by a crafted deck", () => {
+  const cases = {
+    "separator-only deck": "---\n".repeat(200_000),
+    "unclosed image openers": "![](".repeat(250_000),
+    "alt-text storm": "![".repeat(500_000),
+  };
+
+  for (const [name, deck] of Object.entries(cases)) {
+    const started = process.hrtime.bigint();
+    lintMarkdown(deck);
+    const ms = Number(process.hrtime.bigint() - started) / 1e6;
+    assert.ok(ms < 2000, `${name} linted in ${ms.toFixed(0)}ms, expected < 2000ms`);
+  }
+});
+
+test("The image scanner still finds the images it used to", () => {
+  const noAlt = (line) =>
+    lintMarkdown(line).issues.filter((i) => i.rule === "missing-image-alt").length;
+
+  assert.equal(noAlt("![](a.png)"), 1);
+  assert.equal(noAlt("![alt](a.png)"), 0);
+  assert.equal(noAlt('![](a.png "right")'), 1);
+  assert.equal(noAlt("![a](b.png)![](c.png)"), 1);
+  assert.equal(noAlt('![](b.png "has ) paren")'), 1);
+  assert.equal(noAlt("![a] not an image (x)"), 0);
+  assert.equal(noAlt('![a](b "unterminated'), 0);
+  assert.equal(noAlt("text ![](p/q.png) more"), 1);
+
+  // Titles are still read out of the directive.
+  const opacity = lintMarkdown('![a](b.png "bg opacity=7")').issues;
+  assert.ok(opacity.some((i) => i.rule === "invalid-image-opacity"));
+  assert.ok(!lintMarkdown('![a](b.png "bg opacity=0.5")').issues.some(
+    (i) => i.rule === "invalid-image-opacity"
+  ));
+
+  // A URL longer than the scanner's cap is not treated as an image.
+  assert.equal(noAlt("![](" + "a".repeat(3000) + ")"), 0);
 });
