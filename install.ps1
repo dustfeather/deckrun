@@ -56,9 +56,14 @@ if (-not $ver) {
     $installed = $false
 
     # 1) winget (cleanest, per-user capable)
-    if (Get-Command winget -ErrorAction SilentlyContinue) {
+    #
+    # Resolved to its absolute path before being run. A bare command name is
+    # resolved through the search order, which on Windows includes the calling
+    # process's current directory ahead of the PATH directories.
+    $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
+    if ($wingetCmd) {
         try {
-            winget install --id OpenJS.NodeJS.LTS --scope user --silent --accept-package-agreements --accept-source-agreements | Out-Host
+            & $wingetCmd.Source install --id OpenJS.NodeJS.LTS --scope user --silent --accept-package-agreements --accept-source-agreements | Out-Host
             $installed = $true
         } catch {
             Write-Warn "winget install failed ($($_.Exception.Message)); falling back to direct download."
@@ -75,16 +80,57 @@ if (-not $ver) {
             $match = $index | Select-Object -First 1
         }
         $version = $match.version
-        $msi = "$env:TEMP\node-$version-$arch.msi"
+        $msiName = "node-$version-$arch.msi"
+
+        # Staged in a freshly created directory with an unpredictable name.
+        # %TEMP% is writable by every process running as this user, so a
+        # predictable path there can be overwritten between the download
+        # finishing and elevated msiexec opening the file — the victim then
+        # approves the UAC prompt they were expecting and the replacement MSI's
+        # custom actions run as administrator.
+        $stageRoot = Join-Path $env:TEMP ("deckrun-" + [System.Guid]::NewGuid().ToString('N'))
+        $stage = New-Item -ItemType Directory -Path $stageRoot -Force
+        $msi = Join-Path $stage.FullName $msiName
+
         Write-Info "Downloading Node.js $version ($arch)…"
         Invoke-WebRequest -UseBasicParsing "https://nodejs.org/dist/$version/node-$version-$arch.msi" -OutFile $msi
-        # msiexec installs machine-wide and typically needs elevation.
-        try {
-            Start-Process msiexec.exe -ArgumentList "/i `"$msi`" /qn /norestart" -Wait -Verb RunAs
-        } catch {
-            Start-Process msiexec.exe -ArgumentList "/i `"$msi`" /qn /norestart" -Wait
+
+        # Verified against the checksums Node publishes for the release. HTTPS
+        # covers the network hop and says nothing about a compromised or
+        # cached artifact.
+        Write-Info 'Verifying the download…'
+        $sums = (Invoke-WebRequest -UseBasicParsing "https://nodejs.org/dist/$version/SHASUMS256.txt").Content
+        $expected = $null
+        foreach ($line in $sums -split "`n") {
+            $parts = ($line.Trim() -split '\s+')
+            if ($parts.Count -ge 2 -and $parts[1].TrimStart('*') -eq "win-$arch/$msiName") { $expected = $parts[0] }
+            if ($parts.Count -ge 2 -and $parts[1].TrimStart('*') -eq $msiName) { $expected = $parts[0] }
         }
-        Remove-Item $msi -ErrorAction SilentlyContinue
+        if (-not $expected) {
+            Remove-Item $stage.FullName -Recurse -Force -ErrorAction SilentlyContinue
+            throw "No published checksum for $msiName; refusing to run it."
+        }
+        $actual = (Get-FileHash -Algorithm SHA256 -Path $msi).Hash
+        if ($actual -ne $expected.ToUpperInvariant()) {
+            Remove-Item $stage.FullName -Recurse -Force -ErrorAction SilentlyContinue
+            throw "Checksum mismatch for $msiName (expected $expected, got $actual)."
+        }
+        Write-Ok "Verified $msiName against SHASUMS256.txt."
+
+        # msiexec installs machine-wide and typically needs elevation, so it is
+        # launched by absolute path: an unqualified name would be resolved
+        # through the search order and whatever won that search would be the
+        # thing the UAC prompt elevates.
+        $msiexec = Join-Path $env:SystemRoot 'System32\msiexec.exe'
+        if (-not (Test-Path -LiteralPath $msiexec)) {
+            throw "Could not find msiexec.exe at $msiexec."
+        }
+        try {
+            Start-Process $msiexec -ArgumentList "/i `"$msi`" /qn /norestart" -Wait -Verb RunAs
+        } catch {
+            Start-Process $msiexec -ArgumentList "/i `"$msi`" /qn /norestart" -Wait
+        }
+        Remove-Item $stage.FullName -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     # Refresh PATH to pick up the freshly installed node/npm.
