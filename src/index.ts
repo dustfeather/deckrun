@@ -82,6 +82,27 @@ function getMime(filepath: string): string {
   return MIME[extname(filepath).toLowerCase()] ?? "application/octet-stream";
 }
 
+/**
+ * Whether a path under the launch directory may be served.
+ *
+ * The static route exists so that `![](diagram.png)` in a deck resolves, and
+ * a deck references assets. It used to serve anything at or below baseDir —
+ * traversal *above* it was blocked, but everything inside was not restricted
+ * at all, and `deckrun` with no file argument uses the current directory. A
+ * user opening a blank editor from their home directory published
+ * `.aws/credentials`, `.ssh/id_rsa`, `.env` and `.npmrc` on a known port to
+ * every other process, sandboxed app and browser extension on the machine.
+ *
+ * Only the asset types already enumerated in the MIME table are servable, and
+ * no path segment may be a dotfile.
+ */
+function servableAsset(relativePath: string): boolean {
+  const segments = relativePath.split(/[\\/]/).filter(Boolean);
+  if (segments.length === 0) return false;
+  if (segments.some((segment) => segment.startsWith("."))) return false;
+  return Object.hasOwn(MIME, extname(segments[segments.length - 1]).toLowerCase());
+}
+
 async function findFreePort(preferred: number): Promise<number> {
   return new Promise((resolvePort) => {
     const server = createServer();
@@ -706,8 +727,8 @@ async function serve(mode: Mode, baseDir: string, port: number): Promise<string>
       // Everything else comes off disk, relative to the working directory.
       const filePath = resolve(baseDir, pathname.replace(/^\/+/, ""));
       const fromBase = relative(baseDir, filePath);
-      if (isAbsolute(fromBase) || fromBase.startsWith("..")) {
-        res.writeHead(403);
+      if (isAbsolute(fromBase) || fromBase.startsWith("..") || !servableAsset(fromBase)) {
+        res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
         res.end("Forbidden");
         return;
       }
