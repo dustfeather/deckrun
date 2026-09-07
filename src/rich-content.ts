@@ -132,7 +132,13 @@ export const RICH_CONTENT_RUNTIME = `(function () {
           });
           el.setAttribute('data-rendered', 'true');
         } catch (err) {
-          el.innerHTML = '<span class="math-error">' + (err && err.message ? err.message : 'Math rendering error') + '</span>';
+          // The message derives from the deck's own TeX, so it is written as
+          // text rather than parsed as markup.
+          var errSpan = document.createElement('span');
+          errSpan.className = 'math-error';
+          errSpan.textContent = (err && err.message) ? String(err.message) : 'Math rendering error';
+          el.textContent = '';
+          el.appendChild(errSpan);
           el.setAttribute('data-rendered', 'true');
         }
       }

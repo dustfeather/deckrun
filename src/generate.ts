@@ -62,6 +62,17 @@ export {
   type FontSummary,
 } from "./themes.js";
 
+/**
+ * Serialises a value for a `<script>` body.
+ *
+ * A bare JSON.stringify leaves `<` intact, so the first payload field that
+ * ever carries deck-derived text turns `</script>` inside it into a real tag
+ * and closes the block. The notes payload already escaped it; these did not.
+ */
+function scriptJson(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
 function escAttr(str: string): string {
   return str
     .replace(/&/g, "&amp;")
@@ -1462,9 +1473,7 @@ export function generateHtml(
   // standalone export is exactly the artifact people mail to attendees.
   const includeNotes =
     presentation.notes ?? presentation.standalone !== true;
-  const notesJson = JSON.stringify(
-    includeNotes ? slides.map((s) => s.notes ?? "") : []
-  ).replace(/</g, "\\u003c");
+  const notesJson = scriptJson(includeNotes ? slides.map((s) => s.notes ?? "") : []);
 
   const pageTitle = title ? (title.toLowerCase().includes("deckrun") ? title : `${title} · deckrun`) : "deckrun";
   return `<!DOCTYPE html>
@@ -1589,7 +1598,7 @@ ${autoFullscreen ? `<div id="fs-hint">
 </div>` : ''}
 
 ${includeNotes ? `<script id="deck-notes" type="application/json">${notesJson}</script>` : ""}
-<script id="deck-themes" type="application/json">${JSON.stringify({ themes: themeSummaries(), hljsMap: JSON.parse(hljsMapJson()), decorMap: JSON.parse(decorMapJson()) })}</script>
+<script id="deck-themes" type="application/json">${scriptJson({ themes: themeSummaries(), hljsMap: JSON.parse(hljsMapJson()), decorMap: JSON.parse(decorMapJson()) })}</script>
 
 <script>
 ${FRAGMENT_RUNTIME}
@@ -2816,7 +2825,7 @@ ${autoFullscreen ? `<div id="fs-hint">
   <div id="fs-hint__inner">Press any key or click to enter fullscreen</div>
 </div>` : ''}
 
-<script id="deck-themes" type="application/json">${JSON.stringify({ themes: themeSummaries(), hljsMap: JSON.parse(hljsMapJson()), decorMap: JSON.parse(decorMapJson()) })}</script>
+<script id="deck-themes" type="application/json">${scriptJson({ themes: themeSummaries(), hljsMap: JSON.parse(hljsMapJson()), decorMap: JSON.parse(decorMapJson()) })}</script>
 
 <script>
 ${HIGHLIGHT_RUNTIME}

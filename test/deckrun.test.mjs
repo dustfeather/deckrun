@@ -551,6 +551,10 @@ test("Mermaid runs with its sanitizer on", () => {
   const deck = generateHtml(
     parseSlides("# D\n\n```mermaid\ngraph TD; A-->B;\n```"),
     "D",
+test("Latent sharp edges in the generated documents are closed", () => {
+  const deck = generateHtml(
+    parseSlides("# T"),
+    "T",
     false,
     "midnight",
     { head: null, body: null },
@@ -580,4 +584,22 @@ test("Speaker notes do not travel with a document the audience receives", () => 
 
   // The presenter runtime tolerates the missing element.
   assert.ok(build({ standalone: true }).includes("readNotes"));
+  const doc = generateDocHtml("/?deck=1", "T", false, "midnight");
+
+  // Nothing in a script-context JSON payload may carry a raw `<`.
+  for (const [name, html] of Object.entries({ deck, doc })) {
+    for (const payload of html.matchAll(/type="application\/json">([\s\S]*?)<\/script>/g)) {
+      assert.ok(!payload[1].includes("<"), `${name} escapes < in its JSON payloads`);
+    }
+  }
+
+  // The KaTeX failure path builds a node instead of parsing markup.
+  assert.ok(!deck.includes(`'<span class="math-error">'`), "no innerHTML sink for math errors");
+  assert.ok(deck.includes("errSpan.textContent"), "the error text is assigned as text");
+
+  // The editor normalizes its theme rather than trusting the caller.
+  const editor = generateEditorHtml("not-a-theme\" onload=x");
+  assert.ok(!editor.includes("onload=x"), "an unknown theme does not reach the attribute");
+  assert.match(editor, /<html lang="en" data-theme="[a-z0-9-]+"/);
+  assert.ok(generateEditorHtml("catppuccin-mocha").includes('data-theme="catppuccin-mocha"'));
 });
