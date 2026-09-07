@@ -5,6 +5,7 @@ import {
   findFont,
   fontSummaries,
   googleFontsHref,
+  resolveThemeName,
   themeSummaries,
   themeSwitchableCss,
   type ThemeName,
@@ -69,12 +70,16 @@ function bootstrapJson(
 
 /** The Markdown editor served when `deckrun` is launched without a file. */
 export function generateEditorHtml(
-  theme: ThemeName = DEFAULT_THEME,
+  themeInput: ThemeName = DEFAULT_THEME,
   fontInput: { head?: string | null; body?: string | null } = {},
   templateInput: TemplateName = DEFAULT_TEMPLATE,
   transitionInput: TransitionName = DEFAULT_TRANSITION,
   file: EditorFileInfo | null = null
 ): string {
+  // Normalized here rather than trusted from the caller, the way template,
+  // transition and the fonts already are: this is an exported builder and it
+  // interpolates the value straight into a `data-theme=` attribute.
+  const theme = resolveThemeName(themeInput);
   const template = resolveTemplateName(templateInput);
   const transition = resolveTransitionName(transitionInput);
   const fonts = { head: findFont(fontInput.head), body: findFont(fontInput.body) };
