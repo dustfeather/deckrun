@@ -798,3 +798,16 @@ test("The custom marked extensions render what they always did", () => {
   assert.match(ordinary.html, /<table>/);
   assert.match(ordinary.html, /<code class="language-js">/);
 });
+test("Both preview frames are sandboxed without allow-same-origin", () => {
+  const editor = generateEditorHtml();
+
+  for (const id of ["frame", "frame-html"]) {
+    const tag = new RegExp(`<iframe id="${id}"[^>]*>`).exec(editor);
+    assert.ok(tag, `#${id} exists`);
+    assert.match(tag[0], /sandbox="[^"]*allow-scripts[^"]*"/, `#${id} still runs scripts`);
+    assert.ok(
+      !/allow-same-origin/.test(tag[0]),
+      `#${id} must not be granted the editor's origin`
+    );
+  }
+});
