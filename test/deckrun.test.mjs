@@ -429,10 +429,13 @@ test("Math and notes still parse the way they did before", () => {
   const [unclosed] = parseSlides("$$\nx\n$$ trailing\n");
   assert.ok(!unclosed.html.includes('data-display="true"'));
 
-  // Comments that are not notes survive.
+  // A comment that is not a notes directive is not captured as notes. It also
+  // no longer reaches the rendered slide at all, because the sanitizer drops
+  // HTML comments — which means a stray `<!-- TODO: … -->` stops travelling
+  // inside an exported deck the way speaker notes used to.
   const [kept] = parseSlides("# T\n\n<!-- an ordinary comment -->");
   assert.equal(kept.notes, undefined);
-  assert.ok(kept.html.includes("an ordinary comment"));
+  assert.ok(!kept.html.includes("an ordinary comment"));
 });
 
 test("Title extraction is bounded against hostile HTML", async () => {
@@ -453,6 +456,8 @@ test("Title extraction is bounded against hostile HTML", async () => {
   assert.equal(docTitle("<title>Real <b>title</b></title>", "fallback"), "Real title");
   assert.equal(deckTitle([{ html: "<h2 id='x'>Heading</h2>" }], "fallback"), "Heading");
   assert.equal(deckTitle([], "fallback"), "fallback");
+});
+
 test("Lint neutralizes terminal escapes lifted out of a deck", () => {
   const ESC = String.fromCharCode(27);
   const BEL = String.fromCharCode(7);
@@ -506,6 +511,8 @@ test("The image scanner still finds the images it used to", () => {
 
   // A URL longer than the scanner's cap is not treated as an image.
   assert.equal(noAlt("![](" + "a".repeat(3000) + ")"), 0);
+});
+
 test("Image paths cannot break out of the style attribute or carry a scheme", async () => {
   const { renderSlide } = await import("../dist/generate.js");
 
@@ -543,6 +550,8 @@ test("Image paths cannot break out of the style attribute or carry a scheme", as
   // Opacity is a number, not a CSS fragment.
   const opacity = renderSlide({ html: "", bgImage: { src: "a.png", alt: "", opacity: "1; background: red" } }, 0);
   assert.ok(!opacity.includes("background: red"));
+});
+
 test("Mermaid runs with its sanitizer on", () => {
   const runtime = richContentHead({ math: false, mermaid: true }, "local");
   assert.ok(!runtime.includes("securityLevel: 'loose'"), "no loose security level");
@@ -552,7 +561,68 @@ test("Mermaid runs with its sanitizer on", () => {
   const deck = generateHtml(
     parseSlides("# D\n\n```mermaid\ngraph TD; A-->B;\n```"),
     "D",
+    false,
+    "midnight",
+    { head: null, body: null },
+    { template: "classic", transition: "none" }
+  );
+  assert.ok(deck.includes("securityLevel: 'strict'"), "the deck initializes mermaid strictly");
+  assert.ok(!deck.includes("securityLevel: 'loose'"));
+});
+
+test("Speaker notes do not travel with a document the audience receives", () => {
+  const slides = parseSlides(
+    "# Q3 results\n\n<!-- notes: do not mention the revenue miss -->"
+  );
+  const build = (presentation) =>
+    generateHtml(slides, "Q3", false, "midnight", { head: null, body: null }, presentation);
+
+  const presented = build({ template: "classic", transition: "none" });
+  assert.ok(presented.includes("deck-notes"), "the presented deck still carries notes");
+  assert.ok(presented.includes("do not mention the revenue miss"));
+
+  for (const [name, presentation] of Object.entries({
+    "standalone export": { template: "classic", transition: "none", standalone: true },
+    "pdf build": { template: "classic", transition: "none", notes: false },
+  })) {
+    const html = build(presentation);
+    assert.ok(!html.includes("do not mention the revenue miss"), `${name} carries no note text`);
+    assert.ok(!html.includes('id="deck-notes"'), `${name} emits no notes payload`);
+  }
+
+  // The presenter runtime tolerates the missing element.
+  assert.ok(build({ standalone: true }).includes("readNotes"));
+});
+
 test("Latent sharp edges in the generated documents are closed", () => {
+  const deck = generateHtml(
+    parseSlides("# T"),
+    "T",
+    false,
+    "midnight",
+    { head: null, body: null },
+    { template: "classic", transition: "none" }
+  );
+  const doc = generateDocHtml("/?deck=1", "T", false, "midnight");
+
+  // Nothing in a script-context JSON payload may carry a raw `<`.
+  for (const [name, html] of Object.entries({ deck, doc })) {
+    for (const payload of html.matchAll(/type="application\/json">([\s\S]*?)<\/script>/g)) {
+      assert.ok(!payload[1].includes("<"), `${name} escapes < in its JSON payloads`);
+    }
+  }
+
+  // The KaTeX failure path builds a node instead of parsing markup.
+  assert.ok(!deck.includes(`'<span class="math-error">'`), "no innerHTML sink for math errors");
+  assert.ok(deck.includes("errSpan.textContent"), "the error text is assigned as text");
+
+  // The editor normalizes its theme rather than trusting the caller.
+  const editor = generateEditorHtml("not-a-theme\" onload=x");
+  assert.ok(!editor.includes("onload=x"), "an unknown theme does not reach the attribute");
+  assert.match(editor, /<html lang="en" data-theme="[a-z0-9-]+"/);
+  assert.ok(generateEditorHtml("catppuccin-mocha").includes('data-theme="catppuccin-mocha"'));
+});
+
 test("Frames cannot be driven from another origin", () => {
   const preview = generatePreviewHtml("midnight", {}, "classic", "none");
   const editor = generateEditorHtml();
@@ -580,51 +650,11 @@ test("Frames cannot be driven from another origin", () => {
     { head: null, body: null },
     { template: "classic", transition: "none" }
   );
-  assert.ok(deck.includes("securityLevel: 'strict'"), "the deck initializes mermaid strictly");
-  assert.ok(!deck.includes("securityLevel: 'loose'"));
-test("Speaker notes do not travel with a document the audience receives", () => {
-  const slides = parseSlides(
-    "# Q3 results\n\n<!-- notes: do not mention the revenue miss -->"
-  );
-  const build = (presentation) =>
-    generateHtml(slides, "Q3", false, "midnight", { head: null, body: null }, presentation);
-
-  const presented = build({ template: "classic", transition: "none" });
-  assert.ok(presented.includes("deck-notes"), "the presented deck still carries notes");
-  assert.ok(presented.includes("do not mention the revenue miss"));
-
-  for (const [name, presentation] of Object.entries({
-    "standalone export": { template: "classic", transition: "none", standalone: true },
-    "pdf build": { template: "classic", transition: "none", notes: false },
-  })) {
-    const html = build(presentation);
-    assert.ok(!html.includes("do not mention the revenue miss"), `${name} carries no note text`);
-    assert.ok(!html.includes('id="deck-notes"'), `${name} emits no notes payload`);
-  }
-
-  // The presenter runtime tolerates the missing element.
-  assert.ok(build({ standalone: true }).includes("readNotes"));
-  const doc = generateDocHtml("/?deck=1", "T", false, "midnight");
-
-  // Nothing in a script-context JSON payload may carry a raw `<`.
-  for (const [name, html] of Object.entries({ deck, doc })) {
-    for (const payload of html.matchAll(/type="application\/json">([\s\S]*?)<\/script>/g)) {
-      assert.ok(!payload[1].includes("<"), `${name} escapes < in its JSON payloads`);
-    }
-  }
-
-  // The KaTeX failure path builds a node instead of parsing markup.
-  assert.ok(!deck.includes(`'<span class="math-error">'`), "no innerHTML sink for math errors");
-  assert.ok(deck.includes("errSpan.textContent"), "the error text is assigned as text");
-
-  // The editor normalizes its theme rather than trusting the caller.
-  const editor = generateEditorHtml("not-a-theme\" onload=x");
-  assert.ok(!editor.includes("onload=x"), "an unknown theme does not reach the attribute");
-  assert.match(editor, /<html lang="en" data-theme="[a-z0-9-]+"/);
-  assert.ok(generateEditorHtml("catppuccin-mocha").includes('data-theme="catppuccin-mocha"'));
   for (const [name, html] of Object.entries({ preview, editor, deck })) {
     assert.ok(!/postMessage\([^)]*,\s*'\*'\)/.test(html), `${name} sends no wildcard postMessage`);
   }
+});
+
 test("Every third-party script and stylesheet is pinned with SRI", async () => {
   const { HLJS_SRI, HLJS_SCRIPT, hljsIntegrity, THEME_IDS } = await import("../dist/themes.js");
 
@@ -669,6 +699,8 @@ test("Every third-party script and stylesheet is pinned with SRI", async () => {
   assert.match(HLJS_SCRIPT.integrity, /^sha384-/);
   assert.ok(surfaces.deck.includes("hljsLink.integrity = hljsMap[id].integrity"));
   assert.ok(surfaces.preview.includes("link.integrity = HLJS[m.theme].integrity"));
+});
+
 test("Untrusted deck Markdown cannot execute script", () => {
   const payload = [
     "# Slide",
@@ -754,6 +786,8 @@ test("Sanitizing keeps the markup decks actually use", () => {
   // An inline image data URI is still usable; other data: URIs are not.
   const dataImg = parseSlides('<img src="data:image/png;base64,iVBORw0KGgo=">')[0].html;
   assert.match(dataImg, /data:image\/png/);
+});
+
 test("The custom marked extensions render what they always did", () => {
   // Pinned output, so a future marked upgrade that changes the extension API
   // fails here rather than silently rendering something else.
@@ -798,6 +832,7 @@ test("The custom marked extensions render what they always did", () => {
   assert.match(ordinary.html, /<table>/);
   assert.match(ordinary.html, /<code class="language-js">/);
 });
+
 test("Both preview frames are sandboxed without allow-same-origin", () => {
   const editor = generateEditorHtml();
 
