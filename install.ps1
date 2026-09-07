@@ -2,13 +2,13 @@
 #
 #   irm https://raw.githubusercontent.com/arpitbbhayani/deckrun/master/install.ps1 | iex
 #
-# Installs deckrun globally from npm. If Node.js (>= 16) is missing or too
+# Installs deckrun globally from npm. If Node.js (>= 20) is missing or too
 # old, it installs the Node.js LTS (via winget when available, otherwise by
 # downloading the Node.js .msi), refreshes PATH, then installs deckrun.
 
 $ErrorActionPreference = 'Stop'
 
-$NodeMin = 16
+$NodeMin = 20
 
 function Write-Info  { Write-Host "deckrun $args" -ForegroundColor Cyan }
 function Write-Ok    { Write-Host "✓ $args" -ForegroundColor Green }
