@@ -3,6 +3,9 @@
   "version": "1.6.0",
   "description": "A local-first presentation tool for writing, editing, presenting, and exporting Markdown slides or self-contained HTML docs.",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "bin": {
     "deckrun": "./dist/index.js"
   },
@@ -17,7 +20,7 @@
   "dependencies": {
     "commander": "^11.1.0",
     "katex": "^0.18.4",
-    "marked": "^9.1.6",
+    "marked": "^18.0.11",
     "mermaid": "^11.17.2",
     "open": "^9.1.0"
   },
