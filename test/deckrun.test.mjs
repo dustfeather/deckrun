@@ -754,4 +754,47 @@ test("Sanitizing keeps the markup decks actually use", () => {
   // An inline image data URI is still usable; other data: URIs are not.
   const dataImg = parseSlides('<img src="data:image/png;base64,iVBORw0KGgo=">')[0].html;
   assert.match(dataImg, /data:image\/png/);
+test("The custom marked extensions render what they always did", () => {
+  // Pinned output, so a future marked upgrade that changes the extension API
+  // fails here rather than silently rendering something else.
+  const [slide] = parseSlides(
+    [
+      "# Heading",
+      "",
+      "$$",
+      "E = mc^2",
+      "$$",
+      "",
+      "\\[",
+      "a^2 + b^2",
+      "\\]",
+      "",
+      "Inline $a^2 + b^2 = c^2$ and \\(x_1\\) here.",
+      "",
+      "Currency: $5 and $10 stay put.",
+      "",
+      "Term {reveal} marker",
+    ].join("\n")
+  );
+
+  assert.match(slide.html, /<div class="math-source" data-display="true">E = mc\^2<\/div>/);
+  assert.match(slide.html, /<div class="math-source" data-display="true">a\^2 \+ b\^2<\/div>/);
+  assert.match(
+    slide.html,
+    /<span class="math-source" data-display="false">a\^2 \+ b\^2 = c\^2<\/span>/
+  );
+  assert.match(slide.html, /<span class="math-source" data-display="false">x_1<\/span>/);
+  assert.match(slide.html, /Currency: \$5 and \$10 stay put\./, "currency is not math");
+  assert.match(
+    slide.html,
+    /<span class="deckrun-fragment-marker" aria-hidden="true"><\/span>/
+  );
+
+  // Ordinary Markdown the deck relies on.
+  const [ordinary] = parseSlides(
+    "# H\n\n**b** *i* `c`\n\n- x\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```js\nconst x = 1;\n```"
+  );
+  assert.match(ordinary.html, /<strong>b<\/strong>/);
+  assert.match(ordinary.html, /<table>/);
+  assert.match(ordinary.html, /<code class="language-js">/);
 });
