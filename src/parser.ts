@@ -1,4 +1,5 @@
 import { marked } from "marked";
+import { sanitizeSlideHtml } from "./sanitize.js";
 
 function escapeHtml(value: string): string {
   return value
@@ -169,8 +170,10 @@ export function parseSlides(markdown: string): Slide[] {
         processedMd = processedMd.replace(item, "");
       }
 
-      // Render remaining markdown to HTML
-      slide.html = marked.parse(processedMd.trim()) as string;
+      // Render remaining markdown to HTML, then strip anything executable.
+      // marked has had no sanitize option since v8, so without this a deck
+      // someone else wrote runs its own JavaScript on open.
+      slide.html = sanitizeSlideHtml(marked.parse(processedMd.trim()) as string);
 
       return slide;
     });

