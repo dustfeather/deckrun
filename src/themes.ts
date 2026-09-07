@@ -195,6 +195,47 @@ export interface Theme extends ThemeSpec {
 
 const HL = "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/";
 
+/**
+ * Subresource Integrity digests for the highlight.js stylesheets, keyed by the
+ * URL they are served from.
+ *
+ * These sheets are third-party code fetched at open time, on whatever machine
+ * an exported deck is opened on. Without a digest, a CDN compromise, a
+ * hijacked version, or a TLS-intercepting middlebox substitutes its own file
+ * and the browser applies it without complaint. Each value is the sha384 of
+ * the bytes cdnjs serves for that exact version.
+ */
+export const HLJS_SRI: Record<string, string> = {
+  [`${HL}atom-one-dark.min.css`]:
+    "sha384-oaMLBGEzBOJx3UHwac0cVndtX5fxGQIfnAeFZ35RTgqPcYlbprH9o9PUV/F8Le07",
+  [`${HL}atom-one-light.min.css`]:
+    "sha384-w6Ujm1VWa9HYFqGc89oAPn/DWDi2gUamjNrq9DRvEYm2X3ClItg9Y9xs1ViVo5b5",
+  [`${HL}base16/dracula.min.css`]:
+    "sha384-8yvztywXIMtiE+HRhcQsx4/deaeolO/VC3gouoTc7kgVhEdHJ3nJwSU5fzO9HgUV",
+  [`${HL}base16/gruvbox-dark-medium.min.css`]:
+    "sha384-VMCwtlrT/cSbvA70a4gaXObpAqbW1txovq8sbYKXuHB0Z0o1OUgNpekc6fBgXopB",
+  [`${HL}base16/ros-pine-dawn.min.css`]:
+    "sha384-7NCVIhZbPVoPPWJxT42Jci/1xu88cUSY0mKhNzDVl1J7IYkf/OnvCGhEu06iuVz3",
+  [`${HL}base16/ros-pine.min.css`]:
+    "sha384-rGeiKq9/00HH+7/W/nOqGz9AMXaTcR+6ACOELy5XVfQl9zQGLW49JhyGrw/krrwd",
+  [`${HL}base16/solarized-light.min.css`]:
+    "sha384-rnjP0mbM8/cpKzcxL41jkXETTXZTqLAxYj/Xt5x4/j+UsOi1hseTJVw+YdXRbbbi",
+  [`${HL}github.min.css`]:
+    "sha384-eFTL69TLRZTkNfYZOLM+G04821K1qZao/4QLJbet1pP4tcF+fdXq/9CdqAbWRl/L",
+  [`${HL}night-owl.min.css`]:
+    "sha384-xMH/akAd4WIJSWGsUlveLGugns8GuYeJglqHRpASAW0sSbPNVM+BIa4Xa/50+uaJ",
+  [`${HL}nord.min.css`]:
+    "sha384-O/y538KpolLjYHZH8xqC17hcGWgjOw79vqDDhXNIT6Q7q3O5KVr29xbsaq9k6fSL",
+  [`${HL}tokyo-night-dark.min.css`]:
+    "sha384-6PRNB60loRkq5oYgj0ETV33K0YsTUlab8qtfTGXhRgW5Nz1IpzS2zwj6UmlJEnyV",
+};
+
+/** The highlight.js bundle itself, from the same cdnjs release. */
+export const HLJS_SCRIPT = {
+  href: "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js",
+  integrity: "sha384-F/bZzf7p3Joyp5psL90p/p89AZJsndkSoGwRpXcZhleCWhd8SnRuoYo4d0yirjJp",
+};
+
 const SPECS: Record<string, ThemeSpec> = {
   // ── Dark ───────────────────────────────────────────────────────────────
   midnight: {
@@ -823,10 +864,25 @@ export function hljsHref(theme: ThemeName): string {
   return THEMES[resolveThemeName(theme)].hljs;
 }
 
-/** `{ midnight: "https://…", … }`, for the preview's runtime theme swap. */
+/** The SRI digest for a theme's highlight stylesheet. */
+export function hljsIntegrity(theme: ThemeName): string {
+  return HLJS_SRI[hljsHref(theme)] ?? "";
+}
+
+/**
+ * `{ midnight: { href, integrity }, … }`, for the runtime theme swap.
+ *
+ * The digest travels with the URL so that swapping the stylesheet at runtime
+ * stays as verified as loading it at parse time.
+ */
 export function hljsMapJson(): string {
   return JSON.stringify(
-    Object.fromEntries(THEME_IDS.map((id) => [id, THEMES[id].hljs]))
+    Object.fromEntries(
+      THEME_IDS.map((id) => [
+        id,
+        { href: THEMES[id].hljs, integrity: HLJS_SRI[THEMES[id].hljs] ?? "" },
+      ])
+    )
   );
 }
 

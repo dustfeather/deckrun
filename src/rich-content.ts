@@ -24,6 +24,13 @@ export function richContentFeatures(slides: Slide[]): RichFeatures {
   return { math, mermaid };
 }
 
+/**
+ * The head tags for math and diagram rendering.
+ *
+ * The CDN variants carry Subresource Integrity digests. A standalone export
+ * runs third-party JavaScript on whatever machine it is opened on, including
+ * the machines of everyone the deck is sent to, so the bytes are pinned.
+ */
 export function richContentHead(
   features: RichFeatures,
   source: "local" | "cdn" = "local"
@@ -31,8 +38,16 @@ export function richContentHead(
   const parts: string[] = [];
   if (features.math) {
     if (source === "cdn") {
-      parts.push('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.css">');
-      parts.push('<script src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>');
+      parts.push(
+        '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.css"' +
+          ' integrity="sha384-u1zONI5gPXUx0UKI62c75/zww972y0v2rSK5ZYlVdS6xEuWDeZWUI66v6t1gvlXJ"' +
+          ' crossorigin="anonymous">'
+      );
+      parts.push(
+        '<script src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"' +
+          ' integrity="sha384-ykMNcWQhhTUb0YV9SPpPUFURHZ+tWmubkakGBP+OgNK/UXdO2gtzglWx0Rj9hnO3"' +
+          ' crossorigin="anonymous"></script>'
+      );
     } else {
       parts.push('<link rel="stylesheet" href="/__vendor/katex.min.css">');
       parts.push('<script src="/__vendor/katex.min.js"></script>');
@@ -40,7 +55,11 @@ export function richContentHead(
   }
   if (features.mermaid) {
     if (source === "cdn") {
-      parts.push('<script src="https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.min.js"></script>');
+      parts.push(
+        '<script src="https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.min.js"' +
+          ' integrity="sha384-EOXBFmc3gx5mb+vn0vPvvGqACToJD24hhacX5Yx+8NUUQrHIle/Qi5Bg9o3zKwW2"' +
+          ' crossorigin="anonymous"></script>'
+      );
     } else {
       parts.push('<script src="/__vendor/mermaid.min.js"></script>');
     }
