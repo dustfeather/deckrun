@@ -439,7 +439,8 @@ async function handleEditorRoute(
         false,
         theme,
         { head: body.head, body: body.body },
-        { template, transition }
+        // A PDF is handed to the audience: no speaker notes travel with it.
+        { template, transition, notes: false }
       )
     );
 
