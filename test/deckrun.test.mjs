@@ -391,3 +391,27 @@ test("The type size option is gone from every surface", async () => {
   assert.ok(deck.includes("--slide-pad-y: 4.4rem"));
   assert.ok(deck.includes("--slide-pad-x: 6rem"));
 });
+
+test("Speaker notes do not travel with a document the audience receives", () => {
+  const slides = parseSlides(
+    "# Q3 results\n\n<!-- notes: do not mention the revenue miss -->"
+  );
+  const build = (presentation) =>
+    generateHtml(slides, "Q3", false, "midnight", { head: null, body: null }, presentation);
+
+  const presented = build({ template: "classic", transition: "none" });
+  assert.ok(presented.includes("deck-notes"), "the presented deck still carries notes");
+  assert.ok(presented.includes("do not mention the revenue miss"));
+
+  for (const [name, presentation] of Object.entries({
+    "standalone export": { template: "classic", transition: "none", standalone: true },
+    "pdf build": { template: "classic", transition: "none", notes: false },
+  })) {
+    const html = build(presentation);
+    assert.ok(!html.includes("do not mention the revenue miss"), `${name} carries no note text`);
+    assert.ok(!html.includes('id="deck-notes"'), `${name} emits no notes payload`);
+  }
+
+  // The presenter runtime tolerates the missing element.
+  assert.ok(build({ standalone: true }).includes("readNotes"));
+});

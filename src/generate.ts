@@ -1398,6 +1398,11 @@ export interface PresentationChoice {
   transition?: TransitionName | string | null;
   /** Standalone pages use CDN assets because the local vendor routes do not travel. */
   standalone?: boolean;
+  /**
+   * Whether the speaker notes travel with the document. Off for anything the
+   * audience receives — the standalone export and the PDF build.
+   */
+  notes?: boolean;
 }
 
 export function generateHtml(
@@ -1419,9 +1424,15 @@ export function generateHtml(
   const total = slides.length;
   const rich = richContentFeatures(slides);
 
-  // Speaker notes ride along as JSON so the editor's notes panel can show
-  // them; they are never rendered into the deck itself.
-  const notesJson = JSON.stringify(slides.map((s) => s.notes ?? "")).replace(/</g, "\\u003c");
+  // Speaker notes ride along as JSON so the presenter window can show them.
+  // They are never rendered into the deck, but they are still plain text in
+  // the file, so a build the audience receives must not carry them: the
+  // standalone export is exactly the artifact people mail to attendees.
+  const includeNotes =
+    presentation.notes ?? presentation.standalone !== true;
+  const notesJson = JSON.stringify(
+    includeNotes ? slides.map((s) => s.notes ?? "") : []
+  ).replace(/</g, "\\u003c");
 
   const pageTitle = title ? (title.toLowerCase().includes("deckrun") ? title : `${title} · deckrun`) : "deckrun";
   return `<!DOCTYPE html>
@@ -1545,7 +1556,7 @@ ${autoFullscreen ? `<div id="fs-hint">
   <div id="fs-hint__inner">Press any key or click to enter fullscreen</div>
 </div>` : ''}
 
-<script id="deck-notes" type="application/json">${notesJson}</script>
+${includeNotes ? `<script id="deck-notes" type="application/json">${notesJson}</script>` : ""}
 <script id="deck-themes" type="application/json">${JSON.stringify({ themes: themeSummaries(), hljsMap: JSON.parse(hljsMapJson()), decorMap: JSON.parse(decorMapJson()) })}</script>
 
 <script>

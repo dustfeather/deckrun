@@ -536,7 +536,7 @@ Rolling deployment with zero downtime.
 <!-- notes: Review database migration rollout steps before advancing. -->
 ```
 
-Every such comment is stripped from the slide, so notes never leak into the projected output or the PDF export. When you present from the editor, the notes of the slide on screen are shown in the editor's notes panel instead.
+Every such comment is stripped from the slide, so notes are never rendered into the projected output, the PDF export, or the standalone HTML export — and the exports do not carry the notes text at all. When you present from the editor, the notes of the slide on screen are shown in the editor's notes panel instead.
 
 ### Image layout directives
 
@@ -858,7 +858,7 @@ From the editor, press `Cmd Shift S` or pick PDF from the `export` menu, and a f
 - `print-color-adjust: exact` keeps the theme, its backdrop, the code block surfaces, the table fills, and background images, whether or not "Background graphics" is ticked in the dialog.
 - Slides are sized in absolute units for print. Viewport units resolve against the page box in paged media, which is why a deck laid out in `vw` and `vh` came out as clipped portrait pages.
 - The HUD, arrows, overview, cursor, pets, keyboard hint, fullscreen prompt, annotation canvas, laser pointer, blackout, and controls overlay are all hidden.
-- Speaker notes are stripped at parse time, so they never reach the PDF.
+- Speaker notes are stripped at parse time, and the notes payload is left out of PDF and standalone builds, so they never reach the PDF or an exported file.
 - Incremental fragments are fully revealed, so printed and exported slides never omit content.
 
 Loading any presented deck with `&print=1` on its URL opens the print dialog once fonts and highlighting have settled. That is the editor's fallback when there is no browser to drive.
