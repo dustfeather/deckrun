@@ -222,6 +222,12 @@ function sendHtml(res: ServerResponse, html: string): void {
   res.writeHead(200, {
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store",
+    // Nothing prevented a cross-origin page from framing the editor or the
+    // preview and posting into it. It cannot read the frame, but it can post
+    // to it, and the handlers wrote what arrived to innerHTML. Both headers
+    // are sent because the older one still governs some contexts.
+    "X-Frame-Options": "SAMEORIGIN",
+    "Content-Security-Policy": "frame-ancestors 'self'",
   });
   res.end(html);
 }

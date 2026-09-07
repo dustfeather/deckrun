@@ -553,6 +553,25 @@ test("Mermaid runs with its sanitizer on", () => {
     parseSlides("# D\n\n```mermaid\ngraph TD; A-->B;\n```"),
     "D",
 test("Latent sharp edges in the generated documents are closed", () => {
+test("Frames cannot be driven from another origin", () => {
+  const preview = generatePreviewHtml("midnight", {}, "classic", "none");
+  const editor = generateEditorHtml();
+
+  // Both listeners gate on the sender before touching the payload.
+  assert.ok(
+    preview.includes("if (e.origin !== location.origin) return;"),
+    "the preview refuses messages from another origin"
+  );
+  assert.ok(
+    editor.includes("if (e.origin !== location.origin) return;"),
+    "the editor refuses messages from another origin"
+  );
+  assert.ok(
+    editor.includes("if (e.source !== frame.contentWindow && e.source !== frameHtml.contentWindow) return;"),
+    "the editor refuses messages from a window it did not create"
+  );
+
+  // No payload is broadcast to a wildcard target origin any more.
   const deck = generateHtml(
     parseSlides("# T"),
     "T",
@@ -603,4 +622,7 @@ test("Speaker notes do not travel with a document the audience receives", () => 
   assert.ok(!editor.includes("onload=x"), "an unknown theme does not reach the attribute");
   assert.match(editor, /<html lang="en" data-theme="[a-z0-9-]+"/);
   assert.ok(generateEditorHtml("catppuccin-mocha").includes('data-theme="catppuccin-mocha"'));
+  for (const [name, html] of Object.entries({ preview, editor, deck })) {
+    assert.ok(!/postMessage\([^)]*,\s*'\*'\)/.test(html), `${name} sends no wildcard postMessage`);
+  }
 });

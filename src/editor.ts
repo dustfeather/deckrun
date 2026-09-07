@@ -1956,7 +1956,7 @@ ${HIGHLIGHT_RUNTIME}
   /** Dropped rather than queued until the frame is up: see the ready handler. */
   function post(msg) {
     if (!state.frameReady) return;
-    frame.contentWindow.postMessage(msg, '*');
+    frame.contentWindow.postMessage(msg, location.origin);
   }
 
   function pushFrame() {
@@ -2746,7 +2746,7 @@ ${HIGHLIGHT_RUNTIME}
           body: state.body,
           template: state.template,
           transition: state.transition
-        }, '*');
+        }, location.origin);
       }
     } catch (e) {}
   }
@@ -3817,6 +3817,11 @@ ${HIGHLIGHT_RUNTIME}
 
   // ── Frame messages ─────────────────────────────────────────────────────
   window.addEventListener('message', function (e) {
+    // Only the frames this page created may drive it. The source property
+    // cannot be forged, so a page that framed or window.open'd the editor
+    // and posted {type:'action', action:'delete'} at it is refused here.
+    if (e.origin !== location.origin) return;
+    if (e.source !== frame.contentWindow && e.source !== frameHtml.contentWindow) return;
     var m = e.data || {};
     if (m.type === 'ready') {
       // pushLook and pushFrame between them send the whole of the current
