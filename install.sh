@@ -11,7 +11,7 @@
 #
 # Windows users: see install.ps1  (irm ... | iex)
 
-set -e
+set -eu
 
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
@@ -41,19 +41,83 @@ elif command -v wget >/dev/null 2>&1; then
 fi
 
 # Persist a PATH entry across future shells without duplicating it.
+#
+# Appended rather than prepended, and written to one profile file rather than
+# four: prepending a user-writable directory to PATH in every shell means
+# anything that later lands in it shadows the system binary of the same name,
+# everywhere, forever.
 persist_path() {
   key="$NODE_INSTALL_DIR/bin"
-  for rc in "$HOME/.profile" "$HOME/.bash_profile" "$HOME/.bashrc" "$HOME/.zshrc"; do
-    [ -f "$rc" ] || continue
-    if grep -qF "$key" "$rc" 2>/dev/null; then
-      continue
-    fi
-    printf '\n# added by the deckrun installer\nexport PATH="%s:$PATH"\n' "$NODE_INSTALL_DIR/bin" >> "$rc"
+  rc=""
+  for candidate in "$HOME/.profile" "$HOME/.bash_profile" "$HOME/.bashrc" "$HOME/.zshrc"; do
+    if [ -f "$candidate" ]; then rc="$candidate"; break; fi
   done
-  # Create .profile if no dotfile exists yet, so login shells pick it up.
-  if [ ! -f "$HOME/.profile" ]; then
-    printf '\nexport PATH="%s:$PATH"\n' "$NODE_INSTALL_DIR/bin" > "$HOME/.profile"
+  if [ -z "$rc" ]; then rc="$HOME/.profile"; fi
+  if [ -f "$rc" ] && grep -qF "$key" "$rc" 2>/dev/null; then
+    return 0
   fi
+  printf '\n# added by the deckrun installer\nexport PATH="$PATH:%s"\n' "$key" >> "$rc"
+  info "Added $key to PATH in $rc."
+}
+
+# Refuse an install directory that is not a sane absolute path under $HOME.
+#
+# The contents of this directory are deleted before the new Node is unpacked,
+# and the path comes from DECKRUN_NODE_DIR with no validation at all.
+validate_install_dir() {
+  case "$NODE_INSTALL_DIR" in
+    /) warn "DECKRUN_NODE_DIR must not be /."; exit 1 ;;
+    /*) : ;;
+    *) warn "DECKRUN_NODE_DIR must be an absolute path (got '$NODE_INSTALL_DIR')."; exit 1 ;;
+  esac
+  case "$NODE_INSTALL_DIR" in
+    "$HOME"/?*) : ;;
+    *) warn "DECKRUN_NODE_DIR must be a path under $HOME (got '$NODE_INSTALL_DIR')."; exit 1 ;;
+  esac
+  case "$NODE_INSTALL_DIR" in
+    *..*) warn "DECKRUN_NODE_DIR must not contain '..'."; exit 1 ;;
+  esac
+}
+
+# Verify a downloaded file against the checksums Node publishes per release.
+#
+# HTTPS covers the network hop and nothing else: it is no defence against a
+# compromised or cached artifact, and without this there is no way for anyone
+# to notice tampering after the fact.
+verify_checksum() {
+  dir="$1"
+  name="$2"
+  version="$3"
+
+  if [ "$DOWNLOAD_SH" = "curl -fsSL" ]; then
+    curl -fsSL "$DOWNLOAD_URL/$version/SHASUMS256.txt" -o "$dir/SHASUMS256.txt"
+  else
+    wget -qO "$dir/SHASUMS256.txt" "$DOWNLOAD_URL/$version/SHASUMS256.txt"
+  fi
+
+  expected="$(grep -E "[[:space:]]\\*?$name\$" "$dir/SHASUMS256.txt" | awk '{print $1}' | head -n1)"
+  if [ -z "$expected" ]; then
+    warn "No checksum published for $name; refusing to install it."
+    exit 1
+  fi
+
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual="$(sha256sum "$dir/$name" | awk '{print $1}')"
+  elif command -v shasum >/dev/null 2>&1; then
+    actual="$(shasum -a 256 "$dir/$name" | awk '{print $1}')"
+  else
+    warn "Neither sha256sum nor shasum is available; cannot verify the download."
+    warn "Install Node.js >= $NODE_MIN_MAJOR from https://nodejs.org, then re-run."
+    exit 1
+  fi
+
+  if [ "$actual" != "$expected" ]; then
+    warn "Checksum mismatch for $name."
+    warn "  expected $expected"
+    warn "  actual   $actual"
+    exit 1
+  fi
+  ok "Verified $name against SHASUMS256.txt."
 }
 
 # ── Auto-install Node.js for this platform ───────────────────────────────
@@ -105,6 +169,8 @@ install_node() {
     ext="tar.gz"
   fi
 
+  validate_install_dir
+
   file="node-$version-$os-$arch.$ext"
   tmp="$(mktemp -d)"
   cleanup() { rm -rf "$tmp"; }
@@ -116,6 +182,8 @@ install_node() {
   else
     wget -qO "$tmp/$file" "$DOWNLOAD_URL/$version/$file"
   fi
+
+  verify_checksum "$tmp" "$file" "$version"
 
   mkdir -p "$NODE_INSTALL_DIR"
   if [ "$ext" = "tar.gz" ]; then
@@ -169,12 +237,24 @@ ensure_node() {
 ensure_node
 
 # ── Install deckrun ──────────────────────────────────────────────────────
-if [ "$(id -u)" -eq 0 ] || [ -n "$(npm config get prefix 2>/dev/null)" ]; then
-  info "Installing deckrun globally via npm…"
-  npm install -g deckrun
-else
-  info "Installing deckrun globally via npm (may prompt for your password)…"
-  sudo npm install -g deckrun
+# Installed with the user's own permissions, never under sudo.
+#
+# The old condition here was `[ "$(id -u)" -eq 0 ] || [ -n "$(npm config get
+# prefix)" ]`, and `npm config get prefix` essentially always prints a
+# non-empty default, so the sudo branch was close to unreachable — and where
+# it did fire, `sudo npm install -g` runs every package lifecycle script in
+# the dependency tree as root.
+info "Installing deckrun globally via npm…"
+if ! npm install -g deckrun; then
+  warn "npm could not install deckrun into its global prefix."
+  warn "That prefix is probably not writable by you. Either point npm at a"
+  warn "directory you own and re-run this installer:"
+  warn ""
+  warn "  npm config set prefix \"$HOME/.local\""
+  warn ""
+  warn "or install it yourself with whatever elevation you consider"
+  warn "appropriate:  sudo npm install -g deckrun"
+  exit 1
 fi
 
 # ── Verify ───────────────────────────────────────────────────────────────
