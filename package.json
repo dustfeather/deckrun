@@ -18,8 +18,8 @@
     "test": "npm run build && node --test"
   },
   "dependencies": {
-    "commander": "^11.1.0",
-    "katex": "^0.18.4",
+    "commander": "^14.0.3",
+    "katex": "^0.18.7",
     "marked": "^18.0.11",
     "mermaid": "^11.17.2",
     "open": "^11.0.2",
