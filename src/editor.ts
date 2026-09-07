@@ -1239,14 +1239,25 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       </div>
       <div id="stage">
         <div id="frame-box" class="is-single">
-          <iframe id="frame" src="/__preview" title="Slide preview"></iframe>
+          <!-- Sandboxed deliberately without allow-same-origin. Slide HTML is
+               written into this frame with innerHTML, and innerHTML still runs
+               <img onerror> and friends; without the sandbox that code holds
+               the editor's own origin and can reach /__file, /__fetch-doc,
+               localStorage and every file under the launch directory. The
+               frame talks to the editor over postMessage only, so nothing it
+               needs is lost. -->
+          <iframe id="frame" src="/__preview" title="Slide preview"
+                  sandbox="allow-scripts allow-popups"></iframe>
         </div>
       </div>
       <div id="notes">
         <div id="notes__label">speaker notes</div>
         <div id="notes__text"></div>
       </div>
-      <iframe id="frame-html" title="HTML doc preview"></iframe>
+      <!-- Fed an untrusted HTML document verbatim through srcdoc, and a
+           srcdoc frame inherits the parent origin unless it is sandboxed. -->
+      <iframe id="frame-html" title="HTML doc preview"
+              sandbox="allow-scripts allow-popups"></iframe>
     </section>
   </main>
 
