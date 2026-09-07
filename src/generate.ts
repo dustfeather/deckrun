@@ -10,7 +10,9 @@ import {
   fontOverrideCss,
   googleFontsHref,
   hljsHref,
+  hljsIntegrity,
   hljsMapJson,
+  HLJS_SCRIPT,
   resolveThemeName,
   themeRootCss,
   themeSummaries,
@@ -1433,8 +1435,8 @@ export function generateHtml(
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="${googleFontsHref(THEME_IDS.slice(), [head, body])}" rel="stylesheet">
-  <link rel="stylesheet" id="hljs-theme" href="${hljsHref(theme)}">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <link rel="stylesheet" id="hljs-theme" href="${hljsHref(theme)}" integrity="${hljsIntegrity(theme)}" crossorigin="anonymous">
+  <script src="${HLJS_SCRIPT.href}" integrity="${HLJS_SCRIPT.integrity}" crossorigin="anonymous"></script>
   ${richContentHead(rich, presentation.standalone ? "cdn" : "local")}
   <style>
 ${RESET_CSS}
@@ -2199,7 +2201,10 @@ ${HIGHLIGHT_RUNTIME}
     document.documentElement.dataset.decor = decorMap[id] || 'orbs';
     const hljsLink = document.getElementById('hljs-theme');
     if (hljsLink && hljsMap[id]) {
-      hljsLink.href = hljsMap[id];
+      // The digest is set before the href so the new sheet is verified too.
+      hljsLink.integrity = hljsMap[id].integrity || '';
+      hljsLink.crossOrigin = 'anonymous';
+      hljsLink.href = hljsMap[id].href;
     }
     updateThemePenColors();
     if (remember !== false) {
@@ -2690,7 +2695,7 @@ export function generateDocHtml(
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="${googleFontsHref(THEME_IDS.slice())}" rel="stylesheet">
-  <link rel="stylesheet" id="hljs-theme" href="${hljsHref(theme)}">
+  <link rel="stylesheet" id="hljs-theme" href="${hljsHref(theme)}" integrity="${hljsIntegrity(theme)}" crossorigin="anonymous">
   <style>
 ${RESET_CSS}
 
@@ -3188,7 +3193,10 @@ ${HIGHLIGHT_RUNTIME}
     document.documentElement.dataset.decor = decorMap[id] || 'orbs';
     const hljsLink = document.getElementById('hljs-theme');
     if (hljsLink && hljsMap[id]) {
-      hljsLink.href = hljsMap[id];
+      // The digest is set before the href so the new sheet is verified too.
+      hljsLink.integrity = hljsMap[id].integrity || '';
+      hljsLink.crossOrigin = 'anonymous';
+      hljsLink.href = hljsMap[id].href;
     }
     try {
       if (elFrame && elFrame.contentDocument && elFrame.contentDocument.documentElement) {

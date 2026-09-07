@@ -8,7 +8,9 @@ import {
   decorOf,
   googleFontsHref,
   hljsHref,
+  hljsIntegrity,
   hljsMapJson,
+  HLJS_SCRIPT,
   themeSwitchableCss,
   type ThemeName,
 } from "./themes.js";
@@ -58,8 +60,8 @@ export function generatePreviewHtml(
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="${googleFontsHref()}" rel="stylesheet">
-  <link rel="stylesheet" id="hljs-theme" href="${hljsHref(initialTheme)}">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <link rel="stylesheet" id="hljs-theme" href="${hljsHref(initialTheme)}" integrity="${hljsIntegrity(initialTheme)}" crossorigin="anonymous">
+  <script src="${HLJS_SCRIPT.href}" integrity="${HLJS_SCRIPT.integrity}" crossorigin="anonymous"></script>
   ${richContentHead({ math: true, mermaid: true }, "local")}
   <style>
 ${RESET_CSS}
@@ -386,7 +388,12 @@ ${RICH_CONTENT_RUNTIME}
         document.documentElement.dataset.theme = m.theme;
         document.documentElement.dataset.decor = DECOR[m.theme];
         var link = document.getElementById('hljs-theme');
-        if (link) link.href = HLJS[m.theme];
+        if (link) {
+          // Digest first, so the swapped-in sheet is verified as well.
+          link.integrity = HLJS[m.theme].integrity || '';
+          link.crossOrigin = 'anonymous';
+          link.href = HLJS[m.theme].href;
+        }
       }
       // An empty string clears the override and hands the slot back to the
       // theme, which delete does and an assignment of '' would not.

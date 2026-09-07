@@ -391,3 +391,49 @@ test("The type size option is gone from every surface", async () => {
   assert.ok(deck.includes("--slide-pad-y: 4.4rem"));
   assert.ok(deck.includes("--slide-pad-x: 6rem"));
 });
+
+test("Every third-party script and stylesheet is pinned with SRI", async () => {
+  const { HLJS_SRI, HLJS_SCRIPT, hljsIntegrity, THEME_IDS } = await import("../dist/themes.js");
+
+  const surfaces = {
+    deck: generateHtml(
+      parseSlides("# T\n\n$$\nx\n$$\n\n```mermaid\ngraph TD; A-->B;\n```"),
+      "T",
+      false,
+      "midnight",
+      { head: null, body: null },
+      { template: "classic", transition: "none" }
+    ),
+    standalone: generateHtml(
+      parseSlides("# T\n\n$$\nx\n$$\n\n```mermaid\ngraph TD; A-->B;\n```"),
+      "T",
+      false,
+      "midnight",
+      { head: null, body: null },
+      { template: "classic", transition: "none", standalone: true }
+    ),
+    doc: generateDocHtml("/?deck=1", "T", false, "midnight"),
+    preview: generatePreviewHtml("midnight", {}, "classic", "none"),
+  };
+
+  for (const [name, html] of Object.entries(surfaces)) {
+    // Google Fonts serves per-user-agent CSS and cannot carry a fixed digest;
+    // everything else from a CDN must.
+    const tags = html.match(/<(?:script|link)[^>]*(?:cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)[^>]*>/g) ?? [];
+    assert.ok(tags.length > 0, `${name} loads something from a CDN`);
+    for (const tag of tags) {
+      assert.match(tag, /integrity="sha384-[A-Za-z0-9+/=]{64,}"/, `${name}: ${tag.slice(0, 90)}`);
+      assert.match(tag, /crossorigin="anonymous"/, `${name}: ${tag.slice(0, 90)}`);
+    }
+  }
+
+  // Every theme's highlight stylesheet has a digest, and the runtime swap
+  // carries it so a theme change stays verified.
+  for (const id of THEME_IDS) {
+    assert.match(hljsIntegrity(id), /^sha384-/, `${id} has an hljs digest`);
+  }
+  assert.equal(Object.keys(HLJS_SRI).length, 11);
+  assert.match(HLJS_SCRIPT.integrity, /^sha384-/);
+  assert.ok(surfaces.deck.includes("hljsLink.integrity = hljsMap[id].integrity"));
+  assert.ok(surfaces.preview.includes("link.integrity = HLJS[m.theme].integrity"));
+});
