@@ -505,4 +505,41 @@ test("The image scanner still finds the images it used to", () => {
 
   // A URL longer than the scanner's cap is not treated as an image.
   assert.equal(noAlt("![](" + "a".repeat(3000) + ")"), 0);
+test("Image paths cannot break out of the style attribute or carry a scheme", async () => {
+  const { renderSlide } = await import("../dist/generate.js");
+
+  // A single quote used to close url('…') and let the rest become CSS.
+  const injected = renderSlide(
+    {
+      html: "<p>x</p>",
+      bgImage: { src: "x'); position:fixed; inset:0; background:url(https://evil.example/log", alt: "", opacity: 1 },
+    },
+    0
+  );
+  const style = /style="([^"]*)"/.exec(injected)[1];
+  // The payload survives as inert text inside url('…'); what matters is that
+  // it never closes the quote, so none of it is parsed as a declaration.
+  assert.ok(style.includes("&#39;"), "the quote is entity-encoded");
+  assert.equal(
+    (style.match(/'/g) ?? []).length,
+    2,
+    "only the two quotes deckrun wrote are present"
+  );
+  assert.match(style, /url\('[^']*'\); --slide-bg-opacity: 1;$/);
+
+  // Schemes that execute are replaced rather than escaped.
+  for (const bad of ["javascript:alert(1)", "data:text/html,<script>alert(1)</script>", "vbscript:msgbox"]) {
+    const html = renderSlide({ html: "", rightImage: { src: bad, alt: "a", opacity: 1 } }, 0);
+    assert.ok(html.includes('src="about:blank"'), `${bad} is rejected`);
+  }
+
+  // Ordinary paths and inline images still render.
+  for (const good of ["diagram.png", "./a/b.png", "/abs.png", "https://example.com/x.png", "data:image/png;base64,iVBORw0KGgo="]) {
+    const html = renderSlide({ html: "", rightImage: { src: good, alt: "a", opacity: 1 } }, 0);
+    assert.ok(html.includes(`src="${good}"`), `${good} still renders`);
+  }
+
+  // Opacity is a number, not a CSS fragment.
+  const opacity = renderSlide({ html: "", bgImage: { src: "a.png", alt: "", opacity: "1; background: red" } }, 0);
+  assert.ok(!opacity.includes("background: red"));
 });
