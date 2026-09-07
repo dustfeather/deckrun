@@ -391,3 +391,35 @@ test("The type size option is gone from every surface", async () => {
   assert.ok(deck.includes("--slide-pad-y: 4.4rem"));
   assert.ok(deck.includes("--slide-pad-x: 6rem"));
 });
+
+test("Frames cannot be driven from another origin", () => {
+  const preview = generatePreviewHtml("midnight", {}, "classic", "none");
+  const editor = generateEditorHtml();
+
+  // Both listeners gate on the sender before touching the payload.
+  assert.ok(
+    preview.includes("if (e.origin !== location.origin) return;"),
+    "the preview refuses messages from another origin"
+  );
+  assert.ok(
+    editor.includes("if (e.origin !== location.origin) return;"),
+    "the editor refuses messages from another origin"
+  );
+  assert.ok(
+    editor.includes("if (e.source !== frame.contentWindow && e.source !== frameHtml.contentWindow) return;"),
+    "the editor refuses messages from a window it did not create"
+  );
+
+  // No payload is broadcast to a wildcard target origin any more.
+  const deck = generateHtml(
+    parseSlides("# T"),
+    "T",
+    false,
+    "midnight",
+    { head: null, body: null },
+    { template: "classic", transition: "none" }
+  );
+  for (const [name, html] of Object.entries({ preview, editor, deck })) {
+    assert.ok(!/postMessage\([^)]*,\s*'\*'\)/.test(html), `${name} sends no wildcard postMessage`);
+  }
+});

@@ -182,7 +182,10 @@ ${RICH_CONTENT_RUNTIME}
   var index = 0;
 
   function send(msg) {
-    if (window.parent !== window) window.parent.postMessage(msg, '*');
+    // Targeted rather than '*': with a wildcard, a document that navigates
+    // this frame off-origin keeps receiving every later payload, which
+    // includes the whole deck.
+    if (window.parent !== window) window.parent.postMessage(msg, location.origin);
   }
 
   function applyFont(slot, id) {
@@ -370,6 +373,10 @@ ${RICH_CONTENT_RUNTIME}
   });
 
   window.addEventListener('message', function (e) {
+    // Only the editor that served this frame may drive it. Without this, any
+    // page could frame /__preview and post its own render payload, which
+    // goes straight to innerHTML.
+    if (e.origin !== location.origin) return;
     var m = e.data || {};
     if (m.type === 'render') {
       var sameSet = m.slides && slides.length === m.slides.length &&

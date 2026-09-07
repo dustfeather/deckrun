@@ -3197,7 +3197,7 @@ ${HIGHLIGHT_RUNTIME}
     } catch (e) {}
     try {
       if (elFrame && elFrame.contentWindow) {
-        elFrame.contentWindow.postMessage({ type: 'theme', theme: id }, '*');
+        elFrame.contentWindow.postMessage({ type: 'theme', theme: id }, location.origin);
       }
     } catch (e) {}
     updateThemePenColors();
@@ -3509,7 +3509,7 @@ ${HIGHLIGHT_RUNTIME}
     } catch (err) {}
     try {
       if (elFrame.contentWindow) {
-        elFrame.contentWindow.postMessage({ type: 'theme', theme: document.documentElement.dataset.theme || '${theme}' }, '*');
+        elFrame.contentWindow.postMessage({ type: 'theme', theme: document.documentElement.dataset.theme || '${theme}' }, location.origin);
       }
     } catch (err) {}
     try {
