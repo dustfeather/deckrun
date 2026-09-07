@@ -126,7 +126,7 @@ write on the left, live deck on the right. autosaves to your browser.
 Cmd/Ctrl+K inserts anything · Cmd/Ctrl+Shift+L switches theme · Cmd/Ctrl+Enter presents
 ```
 
-The server binds to `127.0.0.1` only, so the deck is never exposed on the network. Stop it with `Ctrl+C`.
+The server binds to `127.0.0.1` only and answers a request only when its `Host` header names `127.0.0.1`, `localhost` or `[::1]` on that port, so it is not reachable from another machine and cannot be reached through DNS rebinding either. It is still reachable by anything else running on your own machine. Stop it with `Ctrl+C`.
 
 ### CLI options
 
