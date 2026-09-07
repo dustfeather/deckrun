@@ -143,10 +143,16 @@ export const RICH_CONTENT_RUNTIME = `(function () {
     var codeBlocks = root.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid');
     if (codeBlocks.length > 0 && window.mermaid) {
       try {
+        // 'strict' is Mermaid's default and the only level that runs its
+        // DOMPurify pass over the generated SVG. Under 'loose' that pass is
+        // skipped entirely and click directives are live, so a mermaid
+        // block in someone else's deck injects raw markup and event
+        // handlers into the page — an injection path of its own, since
+        // the SVG is produced after any sanitizing of the Markdown output.
         window.mermaid.initialize({
           startOnLoad: false,
           theme: 'dark',
-          securityLevel: 'loose'
+          securityLevel: 'strict'
         });
       } catch (e) {}
 

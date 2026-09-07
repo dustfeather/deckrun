@@ -542,4 +542,20 @@ test("Image paths cannot break out of the style attribute or carry a scheme", as
   // Opacity is a number, not a CSS fragment.
   const opacity = renderSlide({ html: "", bgImage: { src: "a.png", alt: "", opacity: "1; background: red" } }, 0);
   assert.ok(!opacity.includes("background: red"));
+test("Mermaid runs with its sanitizer on", () => {
+  const runtime = richContentHead({ math: false, mermaid: true }, "local");
+  assert.ok(!runtime.includes("securityLevel: 'loose'"), "no loose security level");
+
+  // The runtime itself carries the level; check the module source too, since
+  // the head is only one of the surfaces it is embedded into.
+  const deck = generateHtml(
+    parseSlides("# D\n\n```mermaid\ngraph TD; A-->B;\n```"),
+    "D",
+    false,
+    "midnight",
+    { head: null, body: null },
+    { template: "classic", transition: "none" }
+  );
+  assert.ok(deck.includes("securityLevel: 'strict'"), "the deck initializes mermaid strictly");
+  assert.ok(!deck.includes("securityLevel: 'loose'"));
 });
