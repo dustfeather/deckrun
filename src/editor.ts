@@ -45,9 +45,11 @@ function bootstrapJson(
   fonts: { head: string | null; body: string | null },
   template: TemplateName,
   transition: TransitionName,
-  file: EditorFileInfo | null
+  file: EditorFileInfo | null,
+  token: string
 ): string {
   const payload = {
+    token,
     file,
     theme,
     themes: themeSummaries(),
@@ -74,7 +76,8 @@ export function generateEditorHtml(
   fontInput: { head?: string | null; body?: string | null } = {},
   templateInput: TemplateName = DEFAULT_TEMPLATE,
   transitionInput: TransitionName = DEFAULT_TRANSITION,
-  file: EditorFileInfo | null = null
+  file: EditorFileInfo | null = null,
+  token = ""
 ): string {
   // Normalized here rather than trusted from the caller, the way template,
   // transition and the fonts already are: this is an exported builder and it
@@ -1244,7 +1247,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       </div>
       <div id="stage">
         <div id="frame-box" class="is-single">
-          <iframe id="frame" src="/__preview" title="Slide preview"></iframe>
+          <iframe id="frame" src="/__preview?token=${encodeURIComponent(token)}" title="Slide preview"></iframe>
         </div>
       </div>
       <div id="notes">
@@ -1371,7 +1374,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 <div id="toasts"></div>
 <input type="file" id="file-any" accept=".md,.markdown,text/markdown,text/plain,.html,.htm,text/html" hidden>
 
-<script type="application/json" id="bootstrap">${bootstrapJson(theme, fonts, template, transition, file)}</script>
+<script type="application/json" id="bootstrap">${bootstrapJson(theme, fonts, template, transition, file, token)}</script>
 <script>
 ${HIGHLIGHT_RUNTIME}
 </script>
@@ -1388,6 +1391,21 @@ ${HIGHLIGHT_RUNTIME}
   // library: content comes from /__file, edits save back through it, and
   // external changes on disk arrive over /__events.
   var FILE = D.file || null;
+
+  // Every /__ route requires this. It is minted per server run and delivered
+  // only inside this page, so a POST from another site — which is a CORS
+  // simple request and therefore not preflighted — cannot carry it.
+  var TOKEN = D.token || '';
+
+  /** fetch() with the session token attached. */
+  function api(path, init) {
+    init = init || {};
+    var headers = {};
+    for (var key in (init.headers || {})) headers[key] = init.headers[key];
+    headers['X-Deckrun-Token'] = TOKEN;
+    init.headers = headers;
+    return fetch(path, init);
+  }
 
   var K = {
     index:   'deckrun.decks.v1',
@@ -2022,7 +2040,7 @@ ${HIGHLIGHT_RUNTIME}
     if (state.inflight) state.inflight.abort();
     state.inflight = new AbortController();
 
-    fetch('/__parse', {
+    api('/__parse', {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       body: src.value,
@@ -2050,7 +2068,7 @@ ${HIGHLIGHT_RUNTIME}
   function saveNow() {
     if (FILE) {
       if (!FILE.writable) return;
-      fetch('/__file', {
+      api('/__file', {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain; charset=utf-8' },
         body: curValue()
@@ -2539,7 +2557,7 @@ ${HIGHLIGHT_RUNTIME}
           title: $('docname').value
         };
 
-    fetch(pdfUrl, {
+    api(pdfUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(pdfBody)
@@ -2595,7 +2613,7 @@ ${HIGHLIGHT_RUNTIME}
   }
 
   function buildDeck(forPrint, standalone) {
-    return fetch('/__present', {
+    return api('/__present', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2616,7 +2634,7 @@ ${HIGHLIGHT_RUNTIME}
   }
 
   function buildHtmlDoc(forPrint) {
-    return fetch('/__present-doc', {
+    return api('/__present-doc', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -3320,7 +3338,7 @@ ${HIGHLIGHT_RUNTIME}
     }
     var btn = $('start-html-url-go');
     btn.disabled = true;
-    fetch('/__fetch-doc', {
+    api('/__fetch-doc', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: url.toString() }),
@@ -3878,7 +3896,7 @@ ${HIGHLIGHT_RUNTIME}
   }
 
   function loadFromDisk(announce) {
-    fetch('/__file')
+    api('/__file')
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.text();
@@ -3903,7 +3921,8 @@ ${HIGHLIGHT_RUNTIME}
     updateDocTitle();
     loadFromDisk(false);
     if (FILE.watched && typeof EventSource !== 'undefined') {
-      var es = new EventSource('/__events');
+      // EventSource cannot set a header, so the token rides in the query.
+      var es = new EventSource('/__events?token=' + encodeURIComponent(TOKEN));
       es.onmessage = function (e) {
         if (e.data === 'reload') loadFromDisk(true);
       };

@@ -191,7 +191,8 @@ test("Editor bootstraps with the opened file, and without one when absent", () =
   assert.ok(backed.includes('"watched":true'));
   // The runtime that loads, saves, and live-reloads the file rides along.
   assert.ok(backed.includes("/__file"));
-  assert.ok(backed.includes("EventSource('/__events')"));
+  // EventSource cannot set a header, so the session token rides in the query.
+  assert.ok(backed.includes("new EventSource('/__events?token='"));
 });
 
 test("Generate preview HTML produces valid preview structure", () => {

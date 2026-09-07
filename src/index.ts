@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, watch } from "fs";
 import { readFile } from "fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "http";
 import { createRequire } from "module";
+import { randomBytes, timingSafeEqual } from "crypto";
 import { resolve, dirname, basename, extname, join, isAbsolute, relative } from "path";
 import { Command } from "commander";
 import open from "open";
@@ -132,6 +133,60 @@ function safeFilename(name: string): string {
     .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/^-|-$/g, "");
   return slug || "deck";
+}
+
+/**
+ * A secret minted per server run and handed only to the editor page.
+ *
+ * Every `/__` route used to answer any caller. A POST with
+ * `Content-Type: text/plain` is a CORS *simple* request, so the browser sends
+ * it with no preflight and the response being opaque does not matter — the
+ * write, the stash, or the fetch has already happened. Any site the user
+ * visits while deckrun is running could overwrite the open file, or stash
+ * attacker HTML and have it served back from deckrun's own origin.
+ */
+const SESSION_TOKEN = randomBytes(24).toString("base64url");
+
+/** Constant-time comparison, so a wrong token leaks nothing by timing. */
+function tokenMatches(given: string | undefined): boolean {
+  if (!given) return false;
+  const a = Buffer.from(given);
+  const b = Buffer.from(SESSION_TOKEN);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
+ * Whether a request carries the session token, in the header the editor's
+ * fetch() calls set or — for an EventSource and the preview frame, neither of
+ * which can set headers — in the query string.
+ */
+function authorized(req: IncomingMessage, query: URLSearchParams): boolean {
+  const header = req.headers["x-deckrun-token"];
+  const given = Array.isArray(header) ? header[0] : header;
+  return tokenMatches(given) || tokenMatches(query.get("token") ?? undefined);
+}
+
+/**
+ * Rejects a state-changing request whose Origin is another site.
+ *
+ * The token is what actually closes CSRF; this is the second layer, and it
+ * also refuses the `text/plain` content type that made these requests
+ * preflight-free in the first place.
+ */
+function sameOriginPost(req: IncomingMessage, port: number): boolean {
+  const origin = req.headers.origin;
+  if (typeof origin === "string" && origin !== "null") {
+    if (
+      origin !== `http://127.0.0.1:${port}` &&
+      origin !== `http://localhost:${port}` &&
+      origin !== `http://[::1]:${port}`
+    ) {
+      return false;
+    }
+  }
+  const site = req.headers["sec-fetch-site"];
+  if (typeof site === "string" && site !== "same-origin" && site !== "none") return false;
+  return true;
 }
 
 const MAX_BODY = 32 * 1024 * 1024;
@@ -275,8 +330,7 @@ function watchSourceFile(absPath: string): void {
 }
 
 /** Decks built from editor content, addressable so a new tab can load them. */
-const decks = new Map<number, string>();
-let deckSeq = 0;
+const decks = new Map<string, string>();
 
 /**
  * Stores a built deck and returns the path that serves it.
@@ -286,7 +340,10 @@ let deckSeq = 0;
  * being served, and every local image would 404.
  */
 function stashDeck(html: string): string {
-  const id = ++deckSeq;
+  // Unguessable, because the stash is served back as text/html from this
+  // origin. A monotonic counter meant an attacker who had stashed a payload
+  // could simply frame `?deck=1` through `?deck=8` to run it.
+  const id = randomBytes(16).toString("hex");
   decks.set(id, html);
   // Keep only the handful of most recent builds.
   for (const key of decks.keys()) {
@@ -298,7 +355,7 @@ function stashDeck(html: string): string {
 
 /** A built deck, addressed by `?deck=<id>` so its base URL stays the root. */
 function serveStashedDeck(id: string, res: ServerResponse): void {
-  const html = decks.get(parseInt(id, 10));
+  const html = decks.get(id);
   if (!html) {
     res.writeHead(410, { "Content-Type": "text/plain; charset=utf-8" });
     res.end("This build has expired. Press present again in the editor.");
@@ -311,8 +368,23 @@ async function handleEditorRoute(
   mode: EditorMode,
   pathname: string,
   req: IncomingMessage,
-  res: ServerResponse
+  res: ServerResponse,
+  query: URLSearchParams,
+  port: number
 ): Promise<boolean> {
+  // Every /__ route is part of the editor session, so all of them are gated
+  // on the token rather than only the ones that write.
+  if (!authorized(req, query)) {
+    res.writeHead(403, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "forbidden", detail: "missing or invalid session token" }));
+    return true;
+  }
+  if (req.method === "POST" && !sameOriginPost(req, port)) {
+    res.writeHead(403, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "forbidden", detail: "cross-origin request" }));
+    return true;
+  }
+
   if (pathname === "/__preview" && req.method === "GET") {
     sendHtml(
       res,
@@ -725,7 +797,8 @@ async function serve(mode: Mode, baseDir: string, port: number): Promise<string>
                   writable: !!mode.file.path,
                   watched: mode.file.watched,
                 }
-              : null
+              : null,
+            SESSION_TOKEN
           )
         );
         return;
@@ -747,7 +820,7 @@ async function serve(mode: Mode, baseDir: string, port: number): Promise<string>
         return;
       }
 
-      if (await handleEditorRoute(mode, pathname, req, res)) {
+      if (pathname.startsWith("/__") && await handleEditorRoute(mode, pathname, req, res, query, port)) {
         return;
       }
 
