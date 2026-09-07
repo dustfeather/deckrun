@@ -643,9 +643,37 @@ async function handleEditorRoute(
   return false;
 }
 
+/**
+ * Whether a request's Host header names this server.
+ *
+ * Binding to 127.0.0.1 keeps other machines from *routing* to the server; it
+ * does not keep a remote page from *reaching* it. An attacker domain whose A
+ * record flips to 127.0.0.1 after the page loads becomes same-origin with
+ * deckrun, so every response the same-origin policy would otherwise hide
+ * becomes readable — and a same-origin GET carries no Origin header, so
+ * nothing else here would fire. Pinning Host to the names the server is
+ * actually reachable under is what closes DNS rebinding.
+ */
+function hostIsLocal(host: string | undefined, port: number): boolean {
+  if (!host) return false;
+  // A bracketed IPv6 literal, or host:port; the port is optional for :80.
+  const match = /^(\[[0-9a-f:.]+\]|[^:]+)(?::(\d+))?$/i.exec(host.trim());
+  if (!match) return false;
+  const name = match[1].toLowerCase();
+  const given = match[2] ? parseInt(match[2], 10) : 80;
+  if (given !== port) return false;
+  return name === "127.0.0.1" || name === "localhost" || name === "[::1]";
+}
+
 async function serve(mode: Mode, baseDir: string, port: number): Promise<string> {
   const server = createServer(async (req, res) => {
     try {
+      if (!hostIsLocal(req.headers.host, port)) {
+        res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Forbidden: deckrun only answers requests addressed to localhost.");
+        return;
+      }
+
       const rawUrl = req.url ?? "/";
       const [rawPath, rawQuery = ""] = rawUrl.split("?");
       const pathname = decodeURIComponent(rawPath);
