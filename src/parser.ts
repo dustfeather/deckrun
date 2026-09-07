@@ -9,6 +9,46 @@ function escapeHtml(value: string): string {
 }
 
 /**
+ * Locates a math block without letting the regex engine walk the document.
+ *
+ * The obvious pattern for this is `^\$\$[ \t]*\n?([\s\S]+?)\n?[ \t]*\$\$`,
+ * but marked hands block tokenizers the *entire* remaining source, so the
+ * lazy group is expanded one character at a time and the greedy `[ \t]*`
+ * in front of the closing fence re-consumes and gives back the whitespace
+ * run on every one of those expansions. An unclosed `$$` followed by a few
+ * megabytes of spaces is then quadratic, and one `POST /__parse` pins the
+ * server's only thread. Scanning for the fence with `indexOf` is linear.
+ */
+function matchMathBlock(
+  src: string,
+  open: string,
+  close: string
+): { raw: string; text: string } | undefined {
+  if (!src.startsWith(open)) return;
+
+  // The opening fence may be followed by blanks and an optional newline.
+  const head = /^[ \t]*\n?/.exec(src.slice(open.length))![0];
+  const bodyStart = open.length + head.length;
+
+  for (let cursor = bodyStart; ; ) {
+    const at = src.indexOf(close, cursor);
+    if (at < 0) return;
+    // A fence only closes the block when the rest of its line is blank.
+    const tail = /^[ \t]*(?:\n|$)/.exec(src.slice(at + close.length));
+    if (!tail) {
+      cursor = at + close.length;
+      continue;
+    }
+    const body = src.slice(bodyStart, at).replace(/\n?[ \t]*$/, "");
+    if (!body) return;
+    return {
+      raw: src.slice(0, at + close.length + tail[0].length),
+      text: body.trim(),
+    };
+  }
+}
+
+/**
  * Capture TeX before the regular Markdown tokenizer sees it. This keeps
  * operators such as `*` and `_` inside a formula instead of turning them into
  * emphasis. The browser can then render these deliberately marked nodes with
@@ -20,14 +60,13 @@ marked.use({
       name: "deckrunBlockMath",
       level: "block",
       tokenizer(src) {
-        const dollars = /^\$\$[ \t]*\n?([\s\S]+?)\n?[ \t]*\$\$(?:[ \t]*(?:\n|$))/.exec(src);
-        const brackets = /^\\\[[ \t]*\n?([\s\S]+?)\n?[ \t]*\\\](?:[ \t]*(?:\n|$))/.exec(src);
-        const match = dollars ?? brackets;
+        const match =
+          matchMathBlock(src, "$$", "$$") ?? matchMathBlock(src, "\\[", "\\]");
         if (!match) return;
         return {
           type: "deckrunBlockMath",
-          raw: match[0],
-          text: match[1].trim(),
+          raw: match.raw,
+          text: match.text,
           display: true,
         };
       },
@@ -82,6 +121,43 @@ marked.use({
   ],
 });
 
+const NOTES_OPEN = /^<!--[ \t\r\n]{0,64}notes?:/i;
+
+/**
+ * Lifts `<!-- notes: … -->` comments out of a slide and returns what is left.
+ *
+ * The comments are located with `indexOf` rather than with a global
+ * `/<!--\s*notes?:\s*[\s\S]*?-->/g`. That pattern restarts its lazy scan at
+ * every `<!--` in the slide, so a deck built from repeated unclosed
+ * `<!--notes:` openers costs O(n²) — reachable unauthenticated through
+ * `POST /__parse` with a 32 MB body.
+ */
+function extractNotes(raw: string): { notes?: string; body: string } {
+  let notes: string | undefined;
+  let body = "";
+  let from = 0;
+
+  for (;;) {
+    const open = raw.indexOf("<!--", from);
+    if (open < 0) break;
+    if (!NOTES_OPEN.test(raw.slice(open, open + 80))) {
+      // Some other comment: keep it, and resume past its opener.
+      body += raw.slice(from, open + 4);
+      from = open + 4;
+      continue;
+    }
+    const close = raw.indexOf("-->", open);
+    if (close < 0) break; // unclosed notes comment: leave the tail untouched
+    if (notes === undefined) {
+      notes = raw.slice(open, close).replace(NOTES_OPEN, "").trim();
+    }
+    body += raw.slice(from, open);
+    from = close + 3;
+  }
+
+  return { notes, body: body + raw.slice(from) };
+}
+
 export interface PositionedImage {
   src: string;
   alt: string;
@@ -133,11 +209,9 @@ export function parseSlides(markdown: string): Slide[] {
       const slide: Slide = { html: "" };
 
       // Extract speaker notes (<!-- notes: ... --> at end)
-      const notesMatch = raw.match(/<!--\s*notes?:\s*([\s\S]*?)\s*-->/i);
-      if (notesMatch) {
-        slide.notes = notesMatch[1].trim();
-      }
-      let processedMd = raw.replace(/<!--\s*notes?:\s*[\s\S]*?\s*-->/gi, "");
+      const { notes, body } = extractNotes(raw);
+      if (notes !== undefined) slide.notes = notes;
+      let processedMd = body;
 
       // Find positioned images via title attribute: ![alt](src "right opacity:0.7")
       const imgRegex =

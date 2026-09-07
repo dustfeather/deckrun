@@ -391,3 +391,65 @@ test("The type size option is gone from every surface", async () => {
   assert.ok(deck.includes("--slide-pad-y: 4.4rem"));
   assert.ok(deck.includes("--slide-pad-x: 6rem"));
 });
+
+test("Untrusted Markdown cannot hang the parser (ReDoS)", () => {
+  // Each of these payloads drove the pre-fix regexes into quadratic
+  // backtracking. They are reachable unauthenticated through POST /__parse.
+  const cases = {
+    "unclosed block math": "$$\n" + " ".repeat(2_000_000) + "x",
+    "unclosed bracket math": "\\[\n" + " ".repeat(2_000_000) + "x",
+    "unclosed notes comment": "<!--notes:a" + " ".repeat(2_000_000) + "x",
+    "repeated notes openers": "<!--notes:a".repeat(200_000),
+  };
+
+  for (const [name, md] of Object.entries(cases)) {
+    const started = process.hrtime.bigint();
+    parseSlides(md);
+    const ms = Number(process.hrtime.bigint() - started) / 1e6;
+    assert.ok(ms < 2000, `${name} parsed in ${ms.toFixed(0)}ms, expected < 2000ms`);
+  }
+});
+
+test("Math and notes still parse the way they did before", () => {
+  const [slide] = parseSlides(
+    "# Title\n\n$$\nx = y\n$$\n\n\\[\na = b\n\\]\n\n<!-- notes: keep me -->"
+  );
+  assert.equal(slide.notes, "keep me");
+  assert.ok(!slide.html.includes("keep me"), "notes are stripped from the slide");
+  assert.equal(
+    (slide.html.match(/class="math-source" data-display="true"/g) ?? []).length,
+    2,
+    "both display-math forms still tokenize"
+  );
+  assert.ok(slide.html.includes("x = y") && slide.html.includes("a = b"));
+
+  // A `$$` that does not end its line does not close the block, so with no
+  // other fence in the slide there is no math block at all.
+  const [unclosed] = parseSlides("$$\nx\n$$ trailing\n");
+  assert.ok(!unclosed.html.includes('data-display="true"'));
+
+  // Comments that are not notes survive.
+  const [kept] = parseSlides("# T\n\n<!-- an ordinary comment -->");
+  assert.equal(kept.notes, undefined);
+  assert.ok(kept.html.includes("an ordinary comment"));
+});
+
+test("Title extraction is bounded against hostile HTML", async () => {
+  const { deckTitle, docTitle } = await import("../dist/titles.js");
+
+  for (const [name, run] of Object.entries({
+    "docTitle over repeated <title": () => docTitle("<title".repeat(500_000), "fallback"),
+    "deckTitle over repeated <h1": () =>
+      deckTitle([{ html: "<h1".repeat(500_000) }], "fallback"),
+  })) {
+    const started = process.hrtime.bigint();
+    const result = run();
+    const ms = Number(process.hrtime.bigint() - started) / 1e6;
+    assert.equal(result, "fallback");
+    assert.ok(ms < 2000, `${name} took ${ms.toFixed(0)}ms, expected < 2000ms`);
+  }
+
+  assert.equal(docTitle("<title>Real <b>title</b></title>", "fallback"), "Real title");
+  assert.equal(deckTitle([{ html: "<h2 id='x'>Heading</h2>" }], "fallback"), "Heading");
+  assert.equal(deckTitle([], "fallback"), "fallback");
+});

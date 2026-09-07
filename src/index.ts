@@ -6,7 +6,8 @@ import { createRequire } from "module";
 import { resolve, dirname, basename, extname, join, isAbsolute, relative } from "path";
 import { Command } from "commander";
 import open from "open";
-import { parseSlides, type Slide } from "./parser.js";
+import { parseSlides } from "./parser.js";
+import { deckTitle, docTitle } from "./titles.js";
 import { generateHtml, generateDocHtml, renderSlide } from "./generate.js";
 import {
   DEFAULT_THEME,
@@ -98,20 +99,6 @@ async function findFreePort(preferred: number): Promise<number> {
       });
     });
   });
-}
-
-/** First heading of the deck, with inline markup stripped. */
-function deckTitle(slides: Slide[], fallback: string): string {
-  const heading = slides[0]?.html.match(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i);
-  const text = heading ? heading[1].replace(/<[^>]+>/g, "").trim() : "";
-  return text || fallback;
-}
-
-/** An HTML doc's own `<title>`, with inline markup stripped. */
-function docTitle(html: string, fallback: string): string {
-  const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  const text = match ? match[1].replace(/<[^>]+>/g, "").trim() : "";
-  return text || fallback;
 }
 
 /** A deck name reduced to something safe for a Content-Disposition header. */
