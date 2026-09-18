@@ -1,6 +1,6 @@
 ## Databases Were Not Designed For This
 
-**Arpit Bhayani** | arpitbhayani.me
+**Catalin Teodorescu** | github.com/dustfeather
 
 > Agentic AI systems violate the implicit contract of database architecture at every layer simultaneously.
 

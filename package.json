@@ -1,7 +1,28 @@
 {
-  "name": "deckrun",
-  "version": "1.6.0",
+  "name": "@dustfeather/deckrun",
+  "version": "2.0.0",
   "description": "A local-first presentation tool for writing, editing, presenting, and exporting Markdown slides or self-contained HTML docs.",
+  "keywords": [
+    "presentation",
+    "slides",
+    "markdown",
+    "deck",
+    "mermaid",
+    "katex",
+    "pdf-export",
+    "local-first",
+    "cli"
+  ],
+  "homepage": "https://github.com/dustfeather/deckrun#readme",
+  "bugs": {
+    "url": "https://github.com/dustfeather/deckrun/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dustfeather/deckrun.git"
+  },
+  "license": "MIT",
+  "author": "Catalin Teodorescu",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -10,11 +31,17 @@
     "deckrun": "./dist/index.js"
   },
   "files": [
-    "dist/"
+    "dist/",
+    "THIRD-PARTY-NOTICES.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
     "build": "tsc && chmod +x dist/index.js",
     "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
     "test": "npm run build && node --test"
   },
   "dependencies": {

@@ -2,7 +2,7 @@
 #
 # deckrun - one-command installer for Linux & macOS
 #
-#   curl -fsSL https://raw.githubusercontent.com/arpitbbhayani/deckrun/master/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/dustfeather/deckrun/master/install.sh | sh
 #
 # Installs deckrun globally from npm. If Node.js (>= 20) is missing or too
 # old, it downloads an LTS Node.js into ~/.local/share/deckrun-node (no root
@@ -245,7 +245,7 @@ ensure_node
 # it did fire, `sudo npm install -g` runs every package lifecycle script in
 # the dependency tree as root.
 info "Installing deckrun globally via npm…"
-if ! npm install -g deckrun; then
+if ! npm install -g @dustfeather/deckrun; then
   warn "npm could not install deckrun into its global prefix."
   warn "That prefix is probably not writable by you. Either point npm at a"
   warn "directory you own and re-run this installer:"
@@ -253,7 +253,7 @@ if ! npm install -g deckrun; then
   warn "  npm config set prefix \"$HOME/.local\""
   warn ""
   warn "or install it yourself with whatever elevation you consider"
-  warn "appropriate:  sudo npm install -g deckrun"
+  warn "appropriate:  sudo npm install -g @dustfeather/deckrun"
   exit 1
 fi
 

@@ -1,0 +1,30 @@
+name: PR checks
+
+on:
+  pull_request:
+    # `closed` is here so a merge fires a same-concurrency-group run that
+    # cancels the in-flight one. The new run itself does no work — the job
+    # skips via the if: gate below.
+    types: [opened, synchronize, reopened, closed]
+  push:
+    branches: [master]
+
+permissions: { contents: read }
+
+concurrency:
+  group: pr-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    if: github.event.action != 'closed'
+    permissions: { contents: read }
+    uses: dustfeather/shared-workflows/.github/workflows/node-test.yml@v6
+    with:
+      node-version: "22"
+      # No `lint` script in package.json yet, so the lint gate would self-skip
+      # silently. Turned off explicitly so a skipped gate is never mistaken for
+      # a passing one; flip back to true in the same commit that adds ESLint.
+      run-lint: false
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

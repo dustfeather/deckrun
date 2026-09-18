@@ -1,6 +1,6 @@
 # deckrun - one-command installer for Windows (PowerShell)
 #
-#   irm https://raw.githubusercontent.com/arpitbbhayani/deckrun/master/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/dustfeather/deckrun/master/install.ps1 | iex
 #
 # Installs deckrun globally from npm. If Node.js (>= 20) is missing or too
 # old, it installs the Node.js LTS (via winget when available, otherwise by
@@ -150,7 +150,7 @@ if (-not $ver) {
 
 # ── Install deckrun ──────────────────────────────────────────────────────
 Write-Info 'Installing deckrun globally via npm…'
-npm install -g deckrun
+npm install -g @dustfeather/deckrun
 
 # ── Verify ───────────────────────────────────────────────────────────────
 if (Get-Command deckrun -ErrorAction SilentlyContinue) {

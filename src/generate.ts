@@ -1543,7 +1543,7 @@ ${slideHtml}
       <button class="hud-btn" id="btn-help" title="Show every control (?)">? controls</button>
     </div>
     <div id="hud-right">
-      <a href="https://github.com/arpitbbhayani/deckrun" target="_blank" rel="noopener noreferrer" class="hud-brand" id="hud-brand" title="deckrun — Markdown presentations">powered by <span>deckrun</span></a>
+      <a href="https://github.com/dustfeather/deckrun" target="_blank" rel="noopener noreferrer" class="hud-brand" id="hud-brand" title="deckrun — Markdown presentations">powered by <span>deckrun</span></a>
       <div id="slide-counter"><span id="cur">1</span>&nbsp;/&nbsp;<span id="tot">${total}</span></div>
     </div>
   </div>
@@ -1559,12 +1559,12 @@ ${slideHtml}
     <div id="themes__head">
       <span class="th-head__title">themes</span>
       <span class="th-head__sub">Arrow keys preview live &nbsp;·&nbsp; enter selects &nbsp;·&nbsp; esc closes</span>
-      <a href="https://github.com/arpitbbhayani/deckrun" target="_blank" rel="noopener noreferrer" class="th-head__brand" title="deckrun">deckrun</a>
+      <a href="https://github.com/dustfeather/deckrun" target="_blank" rel="noopener noreferrer" class="th-head__brand" title="deckrun">deckrun</a>
       <button id="themes__close" data-close="themes" title="Close (Esc)">&times;</button>
     </div>
     <div id="themes__list"></div>
     <div id="themes__foot">
-      <span class="th-foot__brand">powered by <a href="https://github.com/arpitbbhayani/deckrun" target="_blank" rel="noopener noreferrer">deckrun</a></span>
+      <span class="th-foot__brand">powered by <a href="https://github.com/dustfeather/deckrun" target="_blank" rel="noopener noreferrer">deckrun</a></span>
       <span class="th-foot__hint">Switch themes on the fly</span>
     </div>
   </div>
@@ -1581,7 +1581,7 @@ ${slideHtml}
     <div id="help__grid"></div>
     <div id="help__foot">
       <span>Annotations live per slide and survive navigation.</span>
-      <span>powered by <a href="https://github.com/arpitbbhayani/deckrun" target="_blank" rel="noopener noreferrer">deckrun</a></span>
+      <span>powered by <a href="https://github.com/dustfeather/deckrun" target="_blank" rel="noopener noreferrer">deckrun</a></span>
     </div>
   </div>
 </div>
@@ -2784,7 +2784,7 @@ ${PRESENTER_CSS}
       <button class="hud-btn" id="btn-help" title="Show every control (?)">? controls</button>
     </div>
     <div id="hud-right">
-      <a href="https://github.com/arpitbbhayani/deckrun" target="_blank" rel="noopener noreferrer" class="hud-brand" id="hud-brand" title="deckrun — Markdown presentations">powered by <span>deckrun</span></a>
+      <a href="https://github.com/dustfeather/deckrun" target="_blank" rel="noopener noreferrer" class="hud-brand" id="hud-brand" title="deckrun — Markdown presentations">powered by <span>deckrun</span></a>
     </div>
   </div>
 </div>
@@ -2799,12 +2799,12 @@ ${PRESENTER_CSS}
     <div id="themes__head">
       <span class="th-head__title">themes</span>
       <span class="th-head__sub">Arrow keys preview live &nbsp;·&nbsp; enter selects &nbsp;·&nbsp; esc closes</span>
-      <a href="https://github.com/arpitbbhayani/deckrun" target="_blank" rel="noopener noreferrer" class="th-head__brand" title="deckrun">deckrun</a>
+      <a href="https://github.com/dustfeather/deckrun" target="_blank" rel="noopener noreferrer" class="th-head__brand" title="deckrun">deckrun</a>
       <button id="themes__close" data-close="themes" title="Close (Esc)">&times;</button>
     </div>
     <div id="themes__list"></div>
     <div id="themes__foot">
-      <span class="th-foot__brand">powered by <a href="https://github.com/arpitbbhayani/deckrun" target="_blank" rel="noopener noreferrer">deckrun</a></span>
+      <span class="th-foot__brand">powered by <a href="https://github.com/dustfeather/deckrun" target="_blank" rel="noopener noreferrer">deckrun</a></span>
       <span class="th-foot__hint">Switch themes on the fly</span>
     </div>
   </div>
@@ -2821,7 +2821,7 @@ ${PRESENTER_CSS}
     <div id="help__grid"></div>
     <div id="help__foot">
       <span>Annotations are not saved to disk, and reset if the page reloads.</span>
-      <span>powered by <a href="https://github.com/arpitbbhayani/deckrun" target="_blank" rel="noopener noreferrer">deckrun</a></span>
+      <span>powered by <a href="https://github.com/dustfeather/deckrun" target="_blank" rel="noopener noreferrer">deckrun</a></span>
     </div>
   </div>
 </div>

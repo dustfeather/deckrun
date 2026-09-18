@@ -19,10 +19,10 @@ Write slides in Markdown or bring a self-contained HTML document, run a local se
 
 ## Quick start
 
-Check out the sample Markdown source in [`examples/example-2.md`](https://raw.githubusercontent.com/arpitbbhayani/deckrun/refs/heads/master/examples/example-2.md) and load it directly to see how `deckrun` presents it (no installation required):
+Check out the sample Markdown source in [`examples/example-2.md`](https://raw.githubusercontent.com/dustfeather/deckrun/refs/heads/master/examples/example-2.md) and load it directly to see how `deckrun` presents it (no installation required):
 
 ```bash
-npx deckrun
+npx @dustfeather/deckrun
 ```
 
 ## Installation
@@ -31,28 +31,28 @@ Install with a single command. On Linux and macOS the installer bootstraps
 Node.js (>= 20) automatically if it's missing, then installs deckrun from npm:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/arpitbbhayani/deckrun/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/dustfeather/deckrun/master/install.sh | sh
 ```
 
 On Windows, the PowerShell installer does the same (installs the Node.js LTS
 via winget, or downloads it, when needed):
 
 ```powershell
-irm https://raw.githubusercontent.com/arpitbbhayani/deckrun/master/install.ps1 | iex
+irm https://raw.githubusercontent.com/dustfeather/deckrun/master/install.ps1 | iex
 ```
 
 Or install globally from npm directly:
 
 ```bash
-npm install -g deckrun
+npm install -g @dustfeather/deckrun
 ```
 
 Or run it without installing:
 
 ```bash
-npx deckrun              # open the editor
-npx deckrun slides.md    # open a local file in the editor, present from there
-npx deckrun <url>        # open a public Markdown or HTML URL in the editor
+npx @dustfeather/deckrun              # open the editor
+npx @dustfeather/deckrun slides.md    # open a local file in the editor, present from there
+npx @dustfeather/deckrun <url>        # open a public Markdown or HTML URL in the editor
 ```
 
 ## Usage
@@ -876,14 +876,19 @@ keeps live preview and PDF rendering independent of the network. Google Fonts,
 Highlight.js, and the pet sprites still load from CDNs, so a first run needs
 network access for those visual extras.
 
-## Generating decks and docs with Claude Code
+## Generating decks and docs with agents
 
 ### Markdown decks
 
-Any tool that writes Markdown can write a `deckrun` deck. If you use Claude Code, the `blog-to-slides` skill turns a blog post, article, or long-form note into a deck in exactly this format: `---` separators, `## Title` per slide, language-tagged code blocks, and ASCII diagrams where a picture beats a paragraph.
+Any tool that writes Markdown can write a `deckrun` deck, because the format is
+plain Markdown with a small set of conventions: `---` separators between slides,
+`## Title` at the top of each one, language-tagged code fences, and ASCII
+diagrams where a picture beats a paragraph. An LLM given those four rules and a
+source article produces a deck that presents without hand-editing.
 
 ```text
-turn https://arpitbhayani.me/blogs/wal into slides
+turn <article url> into a deckrun deck: --- between slides, ## Title per slide,
+language-tagged code fences, speaker notes under a > blockquote
 ```
 
 Then present the file it writes:
@@ -892,32 +897,28 @@ Then present the file it writes:
 deckrun wal-slides.md
 ```
 
-Or open the editor and drop the file onto it, which is the faster loop when you still want to cut a few slides:
+Or open the editor and drop the file onto it, which is the faster loop when you
+still want to cut a few slides:
 
 ```bash
 deckrun
 ```
-
-The skill is a personal Claude Code skill and is not bundled with this package. Add it under `~/.claude/skills/blog-to-slides/SKILL.md` to make it available across projects.
 
 Formulas emitted as dollar-delimited LaTeX render with KaTeX. Mermaid fences
 from generated Markdown render as diagrams as well.
 
 ### HTML documents
 
-For a self-contained HTML doc instead of a Markdown deck, use the [`ape-present`](https://github.com/arpitbbhayani/ape-skills) skill. It turns a blog post into a single presentation-worthy HTML page — a readable long-form document with animated diagrams and just enough text to carry the idea — which is exactly the kind of doc `deckrun`'s presenter mode is built for.
-
-```text
-ape present https://arpitbhayani.me/blogs/wal
-```
-
-Then present the page it writes:
+For a long-form read rather than a slide deck, hand `deckrun` a self-contained
+HTML file instead. Presenter mode scrolls it continuously, so a generated
+article — one page, inline styles, animated diagrams — works as-is:
 
 ```bash
 deckrun wal.html
 ```
 
-Like `blog-to-slides`, this is a personal Claude Code skill from the same [ape-skills](https://github.com/arpitbbhayani/ape-skills) collection and is not bundled with this package.
+Everything the page needs must be inline or CDN-loaded; `deckrun` serves the
+file as a single document and does not bundle sibling assets for it.
 
 ## Complete deck template
 
@@ -1050,4 +1051,6 @@ Release steps live in [PUBLISHING.md](PUBLISHING.md).
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). Portions of this project derive from an upstream
+MIT-licensed project whose notice is reproduced in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

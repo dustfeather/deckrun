@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions: { contents: read }
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Same gates as a PR. A tag that cannot build or pass tests must not publish.
+  tests:
+    permissions: { contents: read }
+    uses: dustfeather/shared-workflows/.github/workflows/node-test.yml@v6
+    with:
+      node-version: "22"
+      run-lint: false
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish:
+    needs: tests
+    runs-on: arc-df-shared-workflows
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+
+      - name: Refuse a tag that disagrees with package.json
+        run: |
+          set -eu
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(node -p "require('./package.json').version")
+          if [ "$tag" != "$pkg" ]; then
+            echo "Tag v$tag does not match package.json version $pkg." >&2
+            exit 1
+          fi
+          echo "Publishing version $pkg."
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+        run: npm publish --access public

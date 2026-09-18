@@ -1,13 +1,14 @@
 # Publishing to npm
 
-This package is published as `deckrun` on npm.
+This package is published as `@dustfeather/deckrun` on npm.
 
 ## Pre-publish checklist
 
 - All changes are committed and the working tree is clean
 - `npm run build` succeeds without errors
 - The `dist/` directory reflects the latest source
-- `package.json` has `"files": ["dist"]` so only compiled output is shipped
+- `package.json` has `"files": ["dist/", "THIRD-PARTY-NOTICES.md"]` so only compiled
+  output and the upstream attribution are shipped
 
 ## Updating the version
 
@@ -32,17 +33,35 @@ git push origin master --tags
 
 ## Building and publishing
 
+Pushing the tag is the whole release. `.github/workflows/release.yml` runs the
+shared `node-test` gates, refuses a tag whose name disagrees with
+`package.json`, then publishes:
+
+```bash
+npm version patch          # writes package.json, commits, tags v1.2.3
+git push origin master --tags
+```
+
+The workflow needs one repository secret, `NPM_PUBLISH_TOKEN` — an npm granular
+access token with write access to the `@dustfeather` scope. The separate,
+read-only `NPM_TOKEN` secret is what the test workflow uses for authenticated
+installs and audits; keep the two distinct so a compromised CI log cannot
+publish.
+
+To publish by hand instead (a first release, or a broken runner):
+
 ```bash
 npm run build
 npm publish --access public
 ```
 
-`--access public` is required for scoped packages on the first publish. Subsequent publishes do not need it, but it is safe to include every time.
+`--access public` is required for a scoped package on the first publish.
+Subsequent publishes do not need it, but it is safe to include every time.
 
 ## Verifying the release
 
 ```bash
-npm info deckrun
+npm info @dustfeather/deckrun
 ```
 
 Check that the `version` field and `dist-tags.latest` match what you just published.
@@ -50,7 +69,7 @@ Check that the `version` field and `dist-tags.latest` match what you just publis
 ## Running without installation
 
 ```bash
-npx deckrun slides.md
+npx @dustfeather/deckrun slides.md
 ```
 
 `npx` downloads and runs the package on the fly — no global install needed.
@@ -58,5 +77,5 @@ npx deckrun slides.md
 ## Installing the published package
 
 ```bash
-npm install -g deckrun
+npm install -g @dustfeather/deckrun
 ```

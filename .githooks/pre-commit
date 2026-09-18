@@ -1,0 +1,45 @@
+#!/bin/sh
+# Run the test suite before a commit lands.
+#
+# The suite is `npm test` = `npm run build && node --test`, so this also proves
+# the TypeScript compiles. It runs only when the commit touches something the
+# suite covers; a README-only commit skips it and says so.
+#
+# Bypass with DECKRUN_SKIP_TESTS=1.
+set -e
+
+[ "${DECKRUN_SKIP_TESTS:-0}" = "1" ] && exit 0
+
+GIT_DIR_PATH=$(git rev-parse --git-dir)
+# Mid-rebase/merge/cherry-pick commits are replays of already-tested work.
+if [ -d "$GIT_DIR_PATH/rebase-merge" ] || [ -d "$GIT_DIR_PATH/rebase-apply" ] ||
+   [ -f "$GIT_DIR_PATH/MERGE_HEAD" ] || [ -f "$GIT_DIR_PATH/CHERRY_PICK_HEAD" ]; then
+  exit 0
+fi
+
+ROOT=$(git rev-parse --show-toplevel)
+cd "$ROOT"
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+case "$staged" in
+  *src/*|*test/*|*package.json*|*tsconfig.json*) ;;
+  *)
+    echo "pre-commit: no src/, test/, package.json or tsconfig.json change staged - tests skipped."
+    exit 0
+    ;;
+esac
+
+# A missing install must fail loudly. Skipping here would print a green commit
+# for a suite that never ran, which is the one outcome this hook exists to stop.
+if [ ! -d node_modules ]; then
+  echo "pre-commit: node_modules/ is missing - run 'npm ci' first." >&2
+  echo "pre-commit: to commit anyway, use DECKRUN_SKIP_TESTS=1 git commit ..." >&2
+  exit 1
+fi
+
+echo "pre-commit: running npm test..."
+if ! npm test --silent; then
+  echo "pre-commit: tests failed - commit aborted." >&2
+  exit 1
+fi
+echo "pre-commit: tests passed."
