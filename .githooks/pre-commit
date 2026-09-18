@@ -56,38 +56,37 @@ else
 fi
 
 # ── Dependency audit ─────────────────────────────────────────────────────
+# Runs on EVERY commit, deliberately unscoped.
+#
+# An advisory is a property of the dependency tree this repo ships, not of the
+# diff in front of it. Most advisories that matter land against a lockfile
+# nobody touched that week, so a gate that only fires when package.json or
+# package-lock.json is staged is a gate that never fires when it counts. The
+# rule here is: whatever it finds gets fixed now, whoever introduced it.
+#
 # `npm audit` reads package.json + package-lock.json and needs no node_modules,
 # so it is deliberately not gated on the install check above.
 #
 # --audit-level=low fails on anything at low severity or worse. The spelling
 # matters: `npm audit --low` is not a flag, and npm exits 1 on it whatever the
 # advisory count, which looks exactly like a real finding.
-#
-# Scoped to commits that move the dependency tree. An advisory published against
-# an unchanged lockfile is not something this commit introduced, and blocking on
-# it here would stop unrelated work; CI audits the whole tree on every run.
 if [ "${DECKRUN_SKIP_AUDIT:-0}" = "1" ]; then
   echo "pre-commit: audit skipped (DECKRUN_SKIP_AUDIT=1)."
 else
-  case "$staged" in
-    *package.json*|*package-lock.json*)
-      echo "pre-commit: running npm audit --audit-level=low..."
-      audit_out=$(npm audit --audit-level=low 2>&1)
-      audit_rc=$?
-      if [ "$audit_rc" -eq 0 ]; then
-        echo "pre-commit: audit clean."
-      else
-        echo "$audit_out" >&2
-        echo "pre-commit: audit FAILED (exit $audit_rc)." >&2
-        echo "pre-commit: fix with 'npm audit fix', or commit with DECKRUN_SKIP_AUDIT=1 if" >&2
-        echo "pre-commit: the advisory has no published fix." >&2
-        failed=1
-      fi
-      ;;
-    *)
-      echo "pre-commit: no dependency change staged - audit skipped."
-      ;;
-  esac
+  echo "pre-commit: running npm audit --audit-level=low..."
+  audit_out=$(npm audit --audit-level=low 2>&1)
+  audit_rc=$?
+  if [ "$audit_rc" -eq 0 ]; then
+    echo "pre-commit: audit clean."
+  else
+    echo "$audit_out" >&2
+    echo "pre-commit: audit FAILED (exit $audit_rc)." >&2
+    echo "pre-commit: fix it now - 'npm audit fix', or raise the offending" >&2
+    echo "pre-commit: dependency's floor. It does not matter whether this commit" >&2
+    echo "pre-commit: introduced it. DECKRUN_SKIP_AUDIT=1 exists only for an" >&2
+    echo "pre-commit: advisory with no published fix, and for being offline." >&2
+    failed=1
+  fi
 fi
 
 if [ "$failed" -ne 0 ]; then

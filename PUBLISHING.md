@@ -42,13 +42,24 @@ npm version patch          # writes package.json, commits, tags v1.2.3
 git push origin master --tags
 ```
 
-The workflow needs one repository secret, `NPM_PUBLISH_TOKEN` — an npm granular
-access token with write access to the `@dustfeather` scope. The separate,
-read-only `NPM_TOKEN` secret is what the test workflow uses for authenticated
-installs and audits; keep the two distinct so a compromised CI log cannot
-publish.
+The workflow stores no publish credential. It authenticates with npm **trusted
+publishing**: the job requests an OIDC token from GitHub, npm exchanges it for a
+short-lived publish credential, and provenance is attached automatically. npm
+announced on 2026-07-08 that 2FA-bypass granular access tokens lose direct
+publish around January 2027, so a stored publish token would be a dead end even
+if it were safe to keep one.
 
-To publish by hand instead (a first release, or a broken runner):
+That needs a one-time setup on npmjs.com, after the package exists: open the
+package's Settings, add a trusted publisher for the `dustfeather/deckrun`
+repository and the `Release` workflow. Until that is configured, the publish
+step fails — it has nothing to fall back to, which is the intended behaviour.
+
+The read-only `NPM_TOKEN` secret is unrelated and still used: the test workflow
+reads it so installs and audits authenticate rather than running anonymously. It
+has no publish grant.
+
+The **first** publish has to be manual, because a trusted publisher cannot be
+configured for a package that does not exist yet. Do it interactively, with 2FA:
 
 ```bash
 npm run build

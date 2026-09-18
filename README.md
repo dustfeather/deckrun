@@ -1032,9 +1032,19 @@ npm run dev
 Commits are gated by `.githooks/pre-commit`, which `npm install` wires up by
 pointing `core.hooksPath` at `.githooks`. It runs `npm test` when the commit touches
 `src/`, `test/`, `package.json` or `tsconfig.json`, and `npm audit --audit-level=low`
-when it touches `package.json` or `package-lock.json`. Each gate reports on its own;
-skip one with `DECKRUN_SKIP_TESTS=1` or `DECKRUN_SKIP_AUDIT=1`, or both with
-`DECKRUN_SKIP_HOOKS=1`.
+on **every** commit. The audit is unscoped on purpose: an advisory is a property
+of the tree this project ships, not of the diff in front of you, and the ones
+that matter almost always land against a lockfile nobody touched that week.
+Whatever it reports gets fixed then and there, regardless of which commit
+introduced it. Each gate reports on its own; skip one with `DECKRUN_SKIP_TESTS=1`
+or `DECKRUN_SKIP_AUDIT=1` — the latter is for an advisory with no published fix,
+or for working offline — or both with `DECKRUN_SKIP_HOOKS=1`.
+
+`package.json` carries an `allowScripts` allowlist. Since npm v12, dependency
+install scripts do not run unless they are listed there; `esbuild` (via `tsx`)
+needs its `postinstall` to fetch a platform binary, so `npm run dev` breaks
+without the entry. Add to it with `npm approve-scripts <pkg> --allow-scripts-pin`
+after reviewing what the script does.
 
 `dev` runs the TypeScript through [tsx](https://tsx.is). The `"module": "NodeNext"` setting means the source imports carry `.js` extensions, and neither `ts-node --esm` nor Node's own type stripping remaps those back to the `.ts` files on Node 20 and up — tsx does. Tested on Node 18, 20, 22, and 24.
 

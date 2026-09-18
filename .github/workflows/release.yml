@@ -18,13 +18,22 @@ jobs:
     with:
       node-version: "22"
       run-lint: false
+      audit-level: low
     secrets:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish:
     needs: tests
     runs-on: arc-df-shared-workflows
-    permissions: { contents: read }
+    permissions:
+      contents: read
+      # Trusted publishing: npm exchanges this OIDC token for a short-lived
+      # publish credential. No long-lived publish secret is stored on this repo,
+      # by design — npm is removing direct publish from 2FA-bypass granular
+      # access tokens (announced 2026-07-08, expected around January 2027), and
+      # a credential that cannot be stolen from CI is the point rather than a
+      # deadline to beat.
+      id-token: write
     steps:
       - uses: actions/checkout@v7
 
@@ -32,6 +41,12 @@ jobs:
         with:
           node-version: "22"
           registry-url: https://registry.npmjs.org
+
+      - name: Pin npm to a version that speaks trusted publishing
+        # OIDC publishing needs npm >= 11.5.1; the npm bundled with a Node 22
+        # image is older than that. v12 also matches the install-time defaults
+        # this repo's allowScripts entry is written against.
+        run: npm install -g npm@^12
 
       - name: Refuse a tag that disagrees with package.json
         run: |
@@ -49,6 +64,6 @@ jobs:
       - run: npm run build
 
       - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+        # No registry auth env var here: npm mints its own credential from the
+        # OIDC token above, and attaches provenance automatically when it does.
         run: npm publish --access public

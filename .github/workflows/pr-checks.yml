@@ -26,5 +26,6 @@ jobs:
       # silently. Turned off explicitly so a skipped gate is never mistaken for
       # a passing one; flip back to true in the same commit that adds ESLint.
       run-lint: false
+      audit-level: low
     secrets:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
