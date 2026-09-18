@@ -29,7 +29,17 @@ jobs:
 
   publish:
     needs: tests
-    runs-on: arc-df-deckrun
+    # GitHub-hosted, unlike the tests job on the ARC pool. npm attaches a
+    # provenance attestation automatically under trusted publishing, and its
+    # registry accepts one only from a github-hosted runner: publishing this
+    # from arc-df-deckrun fails with
+    #   422 Unprocessable Entity - Error verifying sigstore provenance bundle:
+    #   Unsupported GitHub Actions runner environment: "self-hosted".
+    # The alternative is --provenance=false, which keeps the pool and throws
+    # away the attestation. This repo is public, so hosted minutes are free and
+    # the attestation is the cheaper side of that trade. The gates stay on ARC;
+    # only the ~1 minute publish leaves.
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       # Trusted publishing: npm exchanges this OIDC token for a short-lived

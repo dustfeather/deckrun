@@ -55,6 +55,14 @@ Publishing a tarball skips one normalisation npm applies to a directory publish:
 silently rewritten to `dist/index.js` on a directory publish and shipped verbatim
 on a tarball publish, so the pack step asserts no `bin` target starts with `./`.
 
+The gates run on the repo's own ARC pool; the publish job runs on a
+GitHub-hosted runner. npm attaches a provenance attestation automatically under
+trusted publishing and its registry accepts one only from a github-hosted
+runner — a self-hosted publish is rejected with `422 ... Error verifying
+sigstore provenance bundle`. Keeping the pool would mean `--provenance=false`
+and no attestation; this repo is public, so hosted minutes cost nothing and the
+attestation is worth more than the minute.
+
 The workflow stores no publish credential. It authenticates with npm **trusted
 publishing**: the job requests an OIDC token from GitHub, npm exchanges it for a
 short-lived publish credential, and provenance is attached automatically. npm
