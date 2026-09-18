@@ -1029,6 +1029,13 @@ npm run dev -- examples/example-1.md
 npm run dev
 ```
 
+Commits are gated by `.githooks/pre-commit`, which `npm install` wires up by
+pointing `core.hooksPath` at `.githooks`. It runs `npm test` when the commit touches
+`src/`, `test/`, `package.json` or `tsconfig.json`, and `npm audit --audit-level=low`
+when it touches `package.json` or `package-lock.json`. Each gate reports on its own;
+skip one with `DECKRUN_SKIP_TESTS=1` or `DECKRUN_SKIP_AUDIT=1`, or both with
+`DECKRUN_SKIP_HOOKS=1`.
+
 `dev` runs the TypeScript through [tsx](https://tsx.is). The `"module": "NodeNext"` setting means the source imports carry `.js` extensions, and neither `ts-node --esm` nor Node's own type stripping remaps those back to the `.ts` files on Node 20 and up — tsx does. Tested on Node 18, 20, 22, and 24.
 
 The source:

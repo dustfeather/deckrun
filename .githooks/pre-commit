@@ -1,14 +1,16 @@
 #!/bin/sh
-# Run the test suite before a commit lands.
+# Pre-commit gates: the test suite, and a dependency audit.
 #
-# The suite is `npm test` = `npm run build && node --test`, so this also proves
-# the TypeScript compiles. It runs only when the commit touches something the
-# suite covers; a README-only commit skips it and says so.
+# Each check decides for itself whether it applies and probes for its own
+# dependencies. A check that cannot run says which one it is and fails; none of
+# them exits the script early, because an early exit here would silently drop
+# every check below it while the hook still returned 0.
 #
-# Bypass with DECKRUN_SKIP_TESTS=1.
-set -e
+# Bypass a single gate with DECKRUN_SKIP_TESTS=1 / DECKRUN_SKIP_AUDIT=1, or all
+# of them with DECKRUN_SKIP_HOOKS=1.
+set -u
 
-[ "${DECKRUN_SKIP_TESTS:-0}" = "1" ] && exit 0
+[ "${DECKRUN_SKIP_HOOKS:-0}" = "1" ] && exit 0
 
 GIT_DIR_PATH=$(git rev-parse --git-dir)
 # Mid-rebase/merge/cherry-pick commits are replays of already-tested work.
@@ -18,28 +20,78 @@ if [ -d "$GIT_DIR_PATH/rebase-merge" ] || [ -d "$GIT_DIR_PATH/rebase-apply" ] ||
 fi
 
 ROOT=$(git rev-parse --show-toplevel)
-cd "$ROOT"
+cd "$ROOT" || exit 1
 
 staged=$(git diff --cached --name-only --diff-filter=ACMR)
-case "$staged" in
-  *src/*|*test/*|*package.json*|*tsconfig.json*) ;;
-  *)
-    echo "pre-commit: no src/, test/, package.json or tsconfig.json change staged - tests skipped."
-    exit 0
-    ;;
-esac
+failed=0
 
-# A missing install must fail loudly. Skipping here would print a green commit
-# for a suite that never ran, which is the one outcome this hook exists to stop.
-if [ ! -d node_modules ]; then
-  echo "pre-commit: node_modules/ is missing - run 'npm ci' first." >&2
-  echo "pre-commit: to commit anyway, use DECKRUN_SKIP_TESTS=1 git commit ..." >&2
-  exit 1
+# ── Tests ────────────────────────────────────────────────────────────────
+# `npm test` is `npm run build && node --test`, so this also proves the
+# TypeScript compiles. Only worth running when the commit touches something the
+# suite covers.
+if [ "${DECKRUN_SKIP_TESTS:-0}" = "1" ]; then
+  echo "pre-commit: tests skipped (DECKRUN_SKIP_TESTS=1)."
+else
+  case "$staged" in
+    *src/*|*test/*|*package.json*|*package-lock.json*|*tsconfig.json*)
+      if [ ! -d node_modules ]; then
+        # Skipping here would print a green commit for a suite that never ran,
+        # which is the one outcome this hook exists to stop.
+        echo "pre-commit: node_modules/ is missing - run 'npm ci' first." >&2
+        failed=1
+      else
+        echo "pre-commit: running npm test..."
+        if npm test --silent; then
+          echo "pre-commit: tests passed."
+        else
+          echo "pre-commit: tests FAILED." >&2
+          failed=1
+        fi
+      fi
+      ;;
+    *)
+      echo "pre-commit: no src/, test/, package.json or tsconfig.json change staged - tests skipped."
+      ;;
+  esac
 fi
 
-echo "pre-commit: running npm test..."
-if ! npm test --silent; then
-  echo "pre-commit: tests failed - commit aborted." >&2
+# ── Dependency audit ─────────────────────────────────────────────────────
+# `npm audit` reads package.json + package-lock.json and needs no node_modules,
+# so it is deliberately not gated on the install check above.
+#
+# --audit-level=low fails on anything at low severity or worse. The spelling
+# matters: `npm audit --low` is not a flag, and npm exits 1 on it whatever the
+# advisory count, which looks exactly like a real finding.
+#
+# Scoped to commits that move the dependency tree. An advisory published against
+# an unchanged lockfile is not something this commit introduced, and blocking on
+# it here would stop unrelated work; CI audits the whole tree on every run.
+if [ "${DECKRUN_SKIP_AUDIT:-0}" = "1" ]; then
+  echo "pre-commit: audit skipped (DECKRUN_SKIP_AUDIT=1)."
+else
+  case "$staged" in
+    *package.json*|*package-lock.json*)
+      echo "pre-commit: running npm audit --audit-level=low..."
+      audit_out=$(npm audit --audit-level=low 2>&1)
+      audit_rc=$?
+      if [ "$audit_rc" -eq 0 ]; then
+        echo "pre-commit: audit clean."
+      else
+        echo "$audit_out" >&2
+        echo "pre-commit: audit FAILED (exit $audit_rc)." >&2
+        echo "pre-commit: fix with 'npm audit fix', or commit with DECKRUN_SKIP_AUDIT=1 if" >&2
+        echo "pre-commit: the advisory has no published fix." >&2
+        failed=1
+      fi
+      ;;
+    *)
+      echo "pre-commit: no dependency change staged - audit skipped."
+      ;;
+  esac
+fi
+
+if [ "$failed" -ne 0 ]; then
+  echo "pre-commit: commit aborted." >&2
   exit 1
 fi
-echo "pre-commit: tests passed."
+exit 0
