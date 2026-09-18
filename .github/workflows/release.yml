@@ -19,12 +19,26 @@ jobs:
       node-version: "24"
       run-lint: false
       audit-level: low
+      # GitHub-hosted, deliberately. The reusable workflow defaults to the
+      # self-hosted ARC pool 'arc-df-shared-workflows', which does not serve
+      # this repository: jobs sat queued indefinitely with no runner able to
+      # claim them, which reads as "still running" rather than as a failure.
+      # Revert to the shared pool once the scale set covers dustfeather/deckrun
+      # — confirm with a non-empty runners array from
+      # 'gh api repos/dustfeather/deckrun/actions/runners'.
+      runner: ubuntu-latest
+      # setup-node's cache is worth it here: a GitHub-hosted runner has no
+      # persistent npm store, which is why the reusable workflow defaults this
+      # off for its self-hosted callers.
+      package-manager-cache: true
     secrets:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish:
     needs: tests
-    runs-on: arc-df-shared-workflows
+    # Same reason as the runner: input above — and OIDC trusted publishing is
+    # best-trodden on GitHub-hosted runners.
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       # Trusted publishing: npm exchanges this OIDC token for a short-lived
