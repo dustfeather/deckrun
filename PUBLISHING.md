@@ -42,6 +42,19 @@ npm version patch          # writes package.json, commits, tags v1.2.3
 git push origin master --tags
 ```
 
+The job builds **once**: `npm ci` -> `npm run build` -> `npm pack`, then
+publishes that exact tarball and uploads it unzipped as a run artifact, so what
+a user installs is byte-for-byte what the run tested. Before publishing it
+installs the tarball into a scratch directory and runs `deckrun --version`, so a
+file missing from `files[]` or a broken bin link fails the release rather than a
+user's install.
+
+Publishing a tarball skips one normalisation npm applies to a directory publish:
+`pkgJson.fix()` runs only for `spec.type === 'directory'` (npm's
+`lib/commands/publish.js`). A `bin` target written as `./dist/index.js` is
+silently rewritten to `dist/index.js` on a directory publish and shipped verbatim
+on a tarball publish, so the pack step asserts no `bin` target starts with `./`.
+
 The workflow stores no publish credential. It authenticates with npm **trusted
 publishing**: the job requests an OIDC token from GitHub, npm exchanges it for a
 short-lived publish credential, and provenance is attached automatically. npm
@@ -51,8 +64,9 @@ if it were safe to keep one.
 
 That needs a one-time setup on npmjs.com, after the package exists: open the
 package's Settings, add a trusted publisher for the `dustfeather/deckrun`
-repository and the `Release` workflow. Until that is configured, the publish
-step fails — it has nothing to fall back to, which is the intended behaviour.
+repository and the `Release` workflow. This is configured. Until it was, the
+publish step failed with nothing to fall back to, which is the intended
+behaviour.
 
 The read-only `NPM_TOKEN` secret is unrelated and still used: the test workflow
 reads it so installs and audits authenticate rather than running anonymously. It

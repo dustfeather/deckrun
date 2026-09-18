@@ -3,3 +3,6 @@ dist/
 
 # local-only tooling hook (graphify), not part of this project
 .githooks/post-commit
+
+# npm pack output
+*.tgz

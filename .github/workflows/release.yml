@@ -42,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: "26"
           registry-url: https://registry.npmjs.org
@@ -68,7 +68,59 @@ jobs:
 
       - run: npm run build
 
+      - name: Pack the tarball that will be published
+        # Build once, publish that exact artifact. `npm publish <tarball>` skips
+        # the package.json normalisation npm applies to a directory spec
+        # (lib/commands/publish.js: pkgJson.fix runs only for spec.type ===
+        # 'directory'), so whatever this step writes is literally what lands on
+        # the registry — no second build, no silent rewrite between test and
+        # publish.
+        id: pack
+        run: |
+          set -eu
+          tarball=$(npm pack --silent)
+          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+          echo "Packed $tarball"
+          tar -xzOf "$tarball" package/package.json | node -e '
+            const fs = require("fs");
+            const pkg = JSON.parse(fs.readFileSync(0, "utf8"));
+            for (const [name, target] of Object.entries(pkg.bin ?? {})) {
+              if (target.startsWith("./")) {
+                console.error(`bin[${name}] is "${target}"; a tarball publish will not normalise it.`);
+                process.exit(1);
+              }
+            }
+            console.log(`bin ok: ${JSON.stringify(pkg.bin)}`);
+          '
+
+      - name: Keep the published tarball with the run
+        uses: actions/upload-artifact@v7
+        with:
+          # archive: false uploads the .tgz as-is instead of zipping it, so the
+          # run's artifact is byte-for-byte what went to the registry and can be
+          # installed straight from a download. It names the artifact after the
+          # file, which is why no 'name' is given.
+          archive: false
+          path: ${{ steps.pack.outputs.tarball }}
+          retention-days: 90
+
+      - name: Smoke-test the tarball before it reaches the registry
+        # Installs the artifact itself, not the working tree, so a missing file
+        # in `files[]` or a broken bin link fails here rather than for a user.
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: |
+          set -eu
+          work=$(mktemp -d)
+          cp "$TARBALL" "$work/"
+          cd "$work"
+          npm init -y >/dev/null
+          npm install "./$TARBALL"
+          ./node_modules/.bin/deckrun --version
+
       - name: Publish to npm
         # No registry auth env var here: npm mints its own credential from the
         # OIDC token above, and attaches provenance automatically when it does.
-        run: npm publish --access public
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: npm publish --access public "$TARBALL"

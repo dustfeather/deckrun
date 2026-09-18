@@ -28,7 +28,7 @@
     "node": ">=26"
   },
   "bin": {
-    "deckrun": "./dist/index.js"
+    "deckrun": "dist/index.js"
   },
   "files": [
     "dist/",
