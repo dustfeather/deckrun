@@ -8,7 +8,7 @@
 
 $ErrorActionPreference = 'Stop'
 
-$NodeMin = 20
+$NodeMin = 24
 
 function Write-Info  { Write-Host "deckrun $args" -ForegroundColor Cyan }
 function Write-Ok    { Write-Host "✓ $args" -ForegroundColor Green }
