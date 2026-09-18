@@ -28,7 +28,7 @@ npx @dustfeather/deckrun
 ## Installation
 
 Install with a single command. On Linux and macOS the installer bootstraps
-Node.js (>= 24) automatically if it's missing, then installs deckrun from npm:
+Node.js (>= 26) automatically if it's missing, then installs deckrun from npm:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dustfeather/deckrun/master/install.sh | sh
@@ -1046,7 +1046,7 @@ needs its `postinstall` to fetch a platform binary, so `npm run dev` breaks
 without the entry. Add to it with `npm approve-scripts <pkg> --allow-scripts-pin`
 after reviewing what the script does.
 
-`dev` runs the TypeScript through [tsx](https://tsx.is). The `"module": "NodeNext"` setting means the source imports carry `.js` extensions, and neither `ts-node --esm` nor Node's own type stripping remaps those back to the `.ts` files — tsx does. Node 24 (Krypton) is the floor, and the version CI runs.
+`dev` runs the TypeScript through [tsx](https://tsx.is). The `"module": "NodeNext"` setting means the source imports carry `.js` extensions, and neither `ts-node --esm` nor Node's own type stripping remaps those back to the `.ts` files — tsx does. Node 26 is the floor, and the version CI runs.
 
 The source:
 

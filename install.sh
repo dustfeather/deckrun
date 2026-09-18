@@ -25,10 +25,10 @@ ok()   { say "${GREEN}✓${RESET} $1"; }
 warn() { say "${YELLOW}!${RESET} $1"; }
 
 # ── Configuration ─────────────────────────────────────────────────────────
-NODE_MIN_MAJOR=24
+NODE_MIN_MAJOR=26
 # LTS to install when Node is missing or too old. Override with the
-# DECKRUN_NODE_VERSION environment variable, e.g. DECKRUN_NODE_VERSION=26.
-NODE_MAJOR="${DECKRUN_NODE_VERSION:-24}"
+# DECKRUN_NODE_VERSION environment variable, e.g. DECKRUN_NODE_VERSION=27.
+NODE_MAJOR="${DECKRUN_NODE_VERSION:-26}"
 NODE_INSTALL_DIR="${DECKRUN_NODE_DIR:-$HOME/.local/share/deckrun-node}"
 DOWNLOAD_URL="https://nodejs.org/dist"
 

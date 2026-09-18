@@ -16,7 +16,7 @@ jobs:
     permissions: { contents: read }
     uses: dustfeather/shared-workflows/.github/workflows/node-test.yml@v6
     with:
-      node-version: "24"
+      node-version: "26"
       run-lint: false
       audit-level: low
       # GitHub-hosted, deliberately. The reusable workflow defaults to the
@@ -53,7 +53,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          node-version: "26"
           registry-url: https://registry.npmjs.org
 
       - name: Pin npm to a version that speaks trusted publishing

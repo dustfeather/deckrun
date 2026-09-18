@@ -21,7 +21,7 @@ jobs:
     permissions: { contents: read }
     uses: dustfeather/shared-workflows/.github/workflows/node-test.yml@v6
     with:
-      node-version: "24"
+      node-version: "26"
       # No `lint` script in package.json yet, so the lint gate would self-skip
       # silently. Turned off explicitly so a skipped gate is never mistaken for
       # a passing one; flip back to true in the same commit that adds ESLint.
