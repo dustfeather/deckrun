@@ -180,7 +180,8 @@ export const RICH_CONTENT_RUNTIME = `(function () {
           // Named rather than defaulted: mermaid 12 changes both defaults,
           // so stating 11's values here makes that upgrade a no-op visually
           // instead of silently re-laying out every existing deck. The bump
-          // itself waits on chevrotain — see the mermaid note in README.
+          // itself waits on chevrotain — see "Pinned front-end assets"
+          // in README.
           layout: 'dagre',
           look: 'classic',
           securityLevel: 'strict'

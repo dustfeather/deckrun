@@ -1064,6 +1064,44 @@ The source:
 
 The deck and the editor preview share `RESET_CSS`, `SLIDE_CSS`, and `DECOR_CSS` out of `generate.ts`, and their palettes out of `themes.ts`, which is what keeps the preview honest. Change a slide style once and both move together.
 
+### Pinned front-end assets
+
+KaTeX and Mermaid are loaded two ways, and the two have to be kept level. A
+local present serves them out of `node_modules` through `/__vendor/`; a
+standalone export — the artifact you mail to attendees — loads them from
+jsdelivr with an SRI hash. When you move one, move the other in the same
+commit: the CDN pin sat three patches behind the installed KaTeX for a while,
+so the same deck rendered its math with different versions depending on how it
+was opened.
+
+Recompute the hash from the bytes the CDN actually serves, never from the
+tarball:
+
+```bash
+node -e 'const c=require("crypto");fetch(process.argv[1]).then(r=>r.arrayBuffer()).then(b=>console.log("sha384-"+c.createHash("sha384").update(Buffer.from(b)).digest("base64")))' \
+  https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.css
+```
+
+A wrong hash fails silently — the browser simply refuses the asset and the deck
+renders without math — so check a real render, and confirm the check can fail
+by feeding it a deliberately wrong hash.
+
+**Mermaid is held at 11.17.2 on purpose.** 12.0.0 depends on `chevrotain
+~11.1.2`, which pulls `lodash-es <= 4.17.23` and five high-severity advisories
+with it (GHSA-r5fr-rjxr-66jc, code injection via `_.template`). `lodash-es`
+4.18.1 carries the fix and chevrotain has since reached 13.x, but Mermaid still
+pins the old range. An npm `overrides` entry does not rescue this: it patches
+`node_modules` only, while the CDN bundle ships chevrotain compiled in, so an
+exported deck would still hand the vulnerable code to whoever opens it. Mermaid
+11.17.2 has no chevrotain dependency at all.
+
+To take 12 when chevrotain moves: bump the dependency and the jsdelivr pin
+together, recompute the SRI, and note that Mermaid 12 requires ES2024, Safari
+17.4+ and Node 22.12+ — a browser-support change for deck *viewers*, not just
+for the build. `mermaid.initialize()` already names `layout: 'dagre'` and
+`look: 'classic'`, which are Mermaid 11's defaults and not 12's, so the upgrade
+will not silently re-lay out and recolour decks that already exist.
+
 Release steps live in [PUBLISHING.md](PUBLISHING.md).
 
 ## License
