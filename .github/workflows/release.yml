@@ -14,7 +14,7 @@ jobs:
   # Same gates as a PR. A tag that cannot build or pass tests must not publish.
   tests:
     permissions: { contents: read }
-    uses: dustfeather/shared-workflows/.github/workflows/node-test.yml@v6
+    uses: dustfeather/shared-workflows/.github/workflows/node-test.yml@v7
     with:
       node-version: "26"
       run-lint: false
