@@ -19,7 +19,7 @@ jobs:
   tests:
     if: github.event.action != 'closed'
     permissions: { contents: read }
-    uses: dustfeather/shared-workflows/.github/workflows/node-test.yml@v6
+    uses: dustfeather/shared-workflows/.github/workflows/node-test.yml@v7
     with:
       node-version: "26"
       # No `lint` script in package.json yet, so the lint gate would self-skip
