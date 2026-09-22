@@ -14,31 +14,25 @@ jobs:
   # Same gates as a PR. A tag that cannot build or pass tests must not publish.
   tests:
     permissions: { contents: read }
-    uses: dustfeather/shared-workflows/.github/workflows/node-test.yml@v7
+    uses: dustfeather/shared-workflows/.github/workflows/node-test.yml@v8
     with:
       node-version: "26"
       run-lint: false
       audit-level: low
-      # Pinned, not defaulted. ARC scale sets on this cluster are single-repo:
-      # the reusable workflow's default pool 'arc-df-shared-workflows' serves
-      # the repo that HOSTS the shared workflows, so a caller that does not pin
-      # its own pool queues forever instead of failing.
-      runner: arc-df-deckrun
     secrets:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish:
     needs: tests
-    # GitHub-hosted, unlike the tests job on the ARC pool. npm attaches a
-    # provenance attestation automatically under trusted publishing, and its
-    # registry accepts one only from a github-hosted runner: publishing this
-    # from arc-df-deckrun fails with
+    # GitHub-hosted, and it has to be: npm attaches a provenance attestation
+    # automatically under trusted publishing, and its registry accepts one only
+    # from a github-hosted runner. Publishing from a self-hosted pool failed
+    # with
     #   422 Unprocessable Entity - Error verifying sigstore provenance bundle:
     #   Unsupported GitHub Actions runner environment: "self-hosted".
-    # The alternative is --provenance=false, which keeps the pool and throws
-    # away the attestation. This repo is public, so hosted minutes are free and
-    # the attestation is the cheaper side of that trade. The gates stay on ARC;
-    # only the ~1 minute publish leaves.
+    # Every job in this repo runs hosted now, so the constraint costs nothing —
+    # it is recorded because --provenance=false is the only other way out, and
+    # that throws the attestation away.
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -19,7 +19,7 @@ jobs:
   tests:
     if: github.event.action != 'closed'
     permissions: { contents: read }
-    uses: dustfeather/shared-workflows/.github/workflows/node-test.yml@v7
+    uses: dustfeather/shared-workflows/.github/workflows/node-test.yml@v8
     with:
       node-version: "26"
       # No `lint` script in package.json yet, so the lint gate would self-skip
@@ -27,10 +27,5 @@ jobs:
       # a passing one; flip back to true in the same commit that adds ESLint.
       run-lint: false
       audit-level: low
-      # Pinned, not defaulted. ARC scale sets on this cluster are single-repo:
-      # the reusable workflow's default pool 'arc-df-shared-workflows' serves
-      # the repo that HOSTS the shared workflows, so a caller that does not pin
-      # its own pool queues forever instead of failing.
-      runner: arc-df-deckrun
     secrets:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
