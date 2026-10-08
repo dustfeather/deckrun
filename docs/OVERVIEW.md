@@ -15,7 +15,7 @@ deckrun is a local-first presentation tool, published to npm as a CLI. You write
 
 - TypeScript, ESM (`"type": "module"`), compiled with `tsc` to `dist/`. The bin is `deckrun` -> `dist/index.js`.
 - Node >= 26 (confirmed: `engines.node = ">=26"`). The floor moved from Node 24 to Node 26 in a recent commit.
-- Runtime deps: `commander` ^15 (CLI), `marked` ^18 (Markdown), `katex` ^0.18.7, `mermaid` ^11.17.2, `sanitize-html` ^2.17.7 and `open` ^11 (launches the browser).
+- Runtime deps: `commander` ^15 (CLI), `marked` ^18 (Markdown), `katex` ^0.19.0, `mermaid` ^11.17.2, `sanitize-html` ^2.18.0 and `open` ^11 (launches the browser).
 - Dev: TypeScript ^7, `tsx` (for `npm run dev`), `@types/node` ^26. Tests use the built-in `node --test`, run after a build.
 - License MIT. Third-party licenses are listed in `THIRD-PARTY-NOTICES.md`, which ships in the npm package.
 
