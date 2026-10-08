@@ -1079,7 +1079,7 @@ tarball:
 
 ```bash
 node -e 'const c=require("crypto");fetch(process.argv[1]).then(r=>r.arrayBuffer()).then(b=>console.log("sha384-"+c.createHash("sha384").update(Buffer.from(b)).digest("base64")))' \
-  https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.css
+  https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css
 ```
 
 A wrong hash fails silently — the browser simply refuses the asset and the deck
@@ -1094,6 +1094,15 @@ pins the old range. An npm `overrides` entry does not rescue this: it patches
 `node_modules` only, while the CDN bundle ships chevrotain compiled in, so an
 exported deck would still hand the vulnerable code to whoever opens it. Mermaid
 11.17.2 has no chevrotain dependency at all.
+
+The same limit applies to `overrides: { mermaid: { katex: "$katex" } }` in
+`package.json`. Mermaid 11 asks for `katex ^0.16`, and every 0.16.x falls
+inside GHSA-238p-pmpm-9mq7 (low, fixed in 0.18.2), so the override points
+Mermaid at the root `katex`. That clears this repo's `node_modules` and
+`npm audit`, but npm ignores `overrides` when deckrun is installed as a
+package, so installs of the published CLI still get Mermaid's nested 0.16.x.
+Mermaid's own bundle also has KaTeX compiled in, so a deck that uses Mermaid
+ships that copy until Mermaid itself moves.
 
 To take 12 when chevrotain moves: bump the dependency and the jsdelivr pin
 together, recompute the SRI, and note that Mermaid 12 requires ES2024, Safari

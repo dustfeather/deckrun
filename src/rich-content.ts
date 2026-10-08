@@ -39,13 +39,13 @@ export function richContentHead(
   if (features.math) {
     if (source === "cdn") {
       parts.push(
-        '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.css"' +
-          ' integrity="sha384-JctiRyLzXCrSoOOzFlSoWLdyzQl7OrrRnhyeBmzB6ZWtcjccUyc8lCQJqIbs3uQX"' +
+        '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css"' +
+          ' integrity="sha384-3rdsX6e5mueWyoweR9NIVmtEsUkokpBT/0ALqKKIBMr9j4qhHkaIkAcGgsE6uVlp"' +
           ' crossorigin="anonymous">'
       );
       parts.push(
-        '<script src="https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.js"' +
-          ' integrity="sha384-+7Keh381hSkXmXqnjC0JBM/kzsN6TFj+wMKychSLjTvJ8/0ElMde2uKl8i6p6Buj"' +
+        '<script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"' +
+          ' integrity="sha384-QFFtAGzvvj+bfgCGxXJlNZZR1nXEZgvG8tDLCCY1F19xl20WlfTYgguB4VcNdxYk"' +
           ' crossorigin="anonymous"></script>'
       );
     } else {
