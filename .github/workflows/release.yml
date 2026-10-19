@@ -16,6 +16,7 @@ jobs:
     permissions: { contents: read }
     uses: dustfeather/shared-workflows/.github/workflows/node-test.yml@v8
     with:
+      runner: arc-df-deckrun
       node-version: "26"
       run-lint: false
       audit-level: low
