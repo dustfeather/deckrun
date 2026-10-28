@@ -19,7 +19,7 @@ jobs:
   tests:
     if: github.event.action != 'closed'
     permissions: { contents: read }
-    uses: dustfeather/shared-workflows/.github/workflows/node-test.yml@v8
+    uses: dustfeather/shared-workflows/.github/workflows/node-test.yml@v9
     with:
       runner: arc-df-deckrun
       node-version: "26"
